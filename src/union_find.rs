@@ -1,14 +1,16 @@
 // Union Find
 // Refer https://note.nkmk.me/python-union-find/
+// Almost same with ac-library-rs dsu
 
 #[derive(Debug, Clone, Default)]
 struct UnionFind {
     parents: Vec<isize>,
+    history: Vec<(usize, isize)>,
 }
 
 #[allow(dead_code)]
 impl UnionFind {
-    fn new(n: usize) -> Self { Self { parents: vec![-1; n], } }
+    fn new(n: usize) -> Self { Self { parents: vec![-1; n], ..Default::default() } }
     // 木の根 再帰版  O(α(N))
     fn root(&mut self, x: usize) -> usize {
         if self.parents[x] < 0 {
@@ -16,6 +18,14 @@ impl UnionFind {
         } else {
             self.parents[x] = self.root(self.parents[x] as usize) as isize;
             self.parents[x] as usize
+        }
+    }
+    // 木の根 経路圧縮しない
+    fn root_without_compress(&mut self, x: usize) -> usize {
+        if self.parents[x] < 0 {
+            x
+        } else {
+            self.root(self.parents[x] as usize)
         }
     }
     // 木を結合する  O(α(N))
@@ -26,6 +36,26 @@ impl UnionFind {
         if self.parents[x] > self.parents[y] { std::mem::swap(&mut x, &mut y); }
         self.parents[x] += self.parents[y];
         self.parents[y] = x as isize;
+    }
+    // 木を結合する（戻すことが可能、経路圧縮をしない）
+    fn undoable_union(&mut self, x: usize, y: usize) {
+        let mut x = self.root_without_compress(x);
+        let mut y = self.root_without_compress(y);
+        self.history.push((x, self.parents[x]));
+        self.history.push((y, self.parents[y]));
+        if x == y { return; }
+        if self.parents[x] > self.parents[y] { std::mem::swap(&mut x, &mut y); }
+        self.parents[x] += self.parents[y];
+        self.parents[y] = x as isize;
+    }
+    // 結合を戻す
+    fn undo(&mut self) {    // historyを2回分ロールバックする
+        if let Some((x, y)) = self.history.pop() {
+            self.parents[x] = y;
+        }
+        if let Some((x, y)) = self.history.pop() {
+            self.parents[x] = y;
+        }
     }
     // 木のサイズ     O(α(N))
     fn size(&mut self, x: usize) -> usize {
@@ -68,8 +98,9 @@ fn main() {
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
-// UnionFind 2.3sec
-// (UnionFind with Cell) 2.8sec
+// cargo test --release benchmark1   1.5 sec
+// cargo test --release benchmark2  35.1 sec
+// cargo test --release benchmark3  16.3 sec
 
 #[cfg(test)]
 mod tests {
@@ -133,13 +164,43 @@ mod tests {
     }
 
     #[test]
-    fn benchmark() {
-        let n = 10_000_000;
+    fn benchmark1() {
+        let n = 100_000_000;
         let mut uf = UnionFind::new(n);
         for i in 0..(n - 1) {
             uf.union(i, i + 1);
         }
         assert_eq!(uf.group_count(), 1);
+    }
+
+    #[test]
+    fn benchmark2_undo() {
+        let n = 1_000_000;
+        let mut uf = UnionFind::new(n);
+        for i in 0..(n - 2) {
+            uf.union(i, i + 1);
+        }
+        for _ in 0..10_000 {
+            let mut uf1 = uf.clone();
+            assert_eq!(uf.group_count(), 2);
+            uf1.union(n - 2, n - 1);
+            assert_eq!(uf1.group_count(), 1);
+        }
+    }
+
+    #[test]
+    fn benchmark3_undo() {
+        let n = 100_000;
+        let mut uf = UnionFind::new(n);
+        for i in 0..(n - 2) {
+            uf.union(i, i + 1);
+        }
+        for _ in 0..100_000 {
+            assert_eq!(uf.group_count(), 2);
+            uf.undoable_union(n - 2, n - 1);
+            assert_eq!(uf.group_count(), 1);
+            uf.undo();
+        }
     }
 }
 
