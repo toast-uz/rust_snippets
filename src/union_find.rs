@@ -131,11 +131,11 @@ fn main() {
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
-// cargo test --release benchmark1    1.4 sec
-// cargo test --release benchmark2    2.6 sec（Undo機能未利用 10万回）
-// cargo test --release benchmark3    1.2 sec（Undo機能利用 1億回）
-// cargo test --release benchmark4    1.1 sec（スコアフル計算 1万回）
-// cargo test --release benchmark5    2.3 sec（スコア差分計算 1000万回）
+// cargo test benchmark1 --bin union_find --release    1.4 sec
+// cargo test benchmark2 --bin union_find --release    2.6 sec（Undo機能未利用 10万回）
+// cargo test benchmark3 --bin union_find --release    1.2 sec（Undo機能利用 1億回）
+// cargo test benchmark4 --bin union_find --release    1.1 sec（スコアフル計算 1万回）
+// cargo test benchmark5 --bin union_find --release    2.3 sec（スコア差分計算 1000万回）
 
 #[cfg(test)]
 mod tests {
