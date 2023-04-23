@@ -1,7 +1,9 @@
-// Union Find
-// Refer https://github.com/rust-lang-ja/ac-library-rs
-// Refer https://note.nkmk.me/python-union-find/
-// Refer https://nyaannyaan.github.io/library/data-structure/rollback-union-find.hpp.html
+/*
+Union Find
+Refer https://github.com/rust-lang-ja/ac-library-rs
+Refer https://note.nkmk.me/python-union-find/
+Refer https://nyaannyaan.github.io/library/data-structure/rollback-union-find.hpp.html
+*/
 
 use std::collections::{HashSet, HashMap};
 
