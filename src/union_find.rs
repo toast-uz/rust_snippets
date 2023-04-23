@@ -67,7 +67,7 @@ impl UnionFind {
     }
     fn size(&self, x: usize) -> usize { self.size_of_root(self.root(x)) }
 
-    // その他の参照関数（差分を作りたい）
+    // その他の参照関数
     // 木の根の列挙 O(N)
     fn roots(&self) -> HashSet<usize> {
         (0..self.parents.len()).filter(|&x| self.is_root(x)).collect()
