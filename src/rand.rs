@@ -48,8 +48,8 @@ fn main() {
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
-// cargo test benchmark1 --bin rand --release   1.4 sec（1億回）
-// cargo test benchmark2 --bin rand --release   2.3 sec（10億回）
+// cargo test benchmark1 --bin rand --release   1.4 sec（1億回）世間一般のrandクレート
+// cargo test benchmark2 --bin rand --release   2.3 sec（10億回）今回作成のxorshift
 
 
 #[cfg(test)]
