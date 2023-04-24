@@ -42,8 +42,35 @@ impl Rand {
     }
 }
 
-fn main() {
+// make binary date for https://github.com/dj-on-github/sp800_22_tests
+// Refer https://tech.ateruimashin.com/2020/03/tools3/
+/*
+monobit_test                             0.4726615207621658 PASS
+frequency_within_block_test              0.5703095540643596 PASS
+runs_test                                0.8965676419009525 PASS
+longest_run_ones_in_a_block_test         0.7592006906669653 PASS
+binary_matrix_rank_test                  0.2049247626724776 PASS
+dft_test                                 0.7896399427236418 PASS
+non_overlapping_template_matching_test   0.9944184973839666 PASS
+overlapping_template_matching_test       0.07805722693233187 PASS
+maurers_universal_test                   0.6038796999164997 PASS
+linear_complexity_test                   0.5031469546219416 PASS
+serial_test                              0.8624576869293109 PASS
+approximate_entropy_test                 0.8625398425658882 PASS
+cumulative_sums_test                     0.2824631370718771 PASS
+random_excursion_test                    0.21335520833619928 PASS
+random_excursion_variant_test            0.07994960739002104 PASS
+*/
+use std::fs::File;
+use std::io::Write;
 
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut rng = Rand::new_from_seed(998244353);
+    let mut file = File::create("./tools/sp800_22_tests/xorshift.bin")?;
+    let buf: Vec<u8> = (0..(1024*1024)).map(|_| rng.gen_range(0..256) as u8).collect();
+    file.write_all(&buf)?;
+    file.flush()?;
+    Ok(())
 }
 
 ///////////////////////////////////////////////////////////
