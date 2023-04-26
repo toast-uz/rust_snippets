@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 proconio = { version = "=0.3.6", features = ["derive"] }
-rand = { version = "=0.8.5", features = ["small_rng"] }
+rand_org = { package = "rand", version = "=0.8.5", features = ["small_rng"] }
 
 [[bin]]
 name = "union_find"

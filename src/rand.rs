@@ -5,42 +5,46 @@ Refer https://www.cepstrum.co.jp/hobby/xorshift/xorshift.html
 
 Usage
 
-let mut rng = Rand::new();
+let mut rng = rand::xorshift_rng();
+(let mut rng = rand::XorshiftRng::from_seed(seed);)
 let random_range = rng.gen_range(0..10);    // [0, 10)のusizeの一様乱数
 let random_range = rng.gen_range(0..=10);   // [0, 10]のusizeの一様乱数
 let random_uniform = rng.gen();             // [0, 1]のf64の一様乱数
 */
 
-use std::time::Instant;
+mod rand {
+    use std::time::Instant;
+    #[allow(dead_code)]
+    pub fn xorshift_rng() -> XorshiftRng { XorshiftRng::from_seed(Instant::now().elapsed().as_nanos() as u64) }
+    pub struct XorshiftRng { seed: u64, }
 
-struct Rand { seed: u64, }
-
-#[allow(dead_code)]
-impl Rand {
-    fn new() -> Self { Self::new_from_seed(Instant::now().elapsed().as_nanos() as u64) }
-    fn new_from_seed(seed: u64) -> Self { Self { seed, } }
-    fn _xorshift(&mut self) {
-        self.seed ^= self.seed << 3;
-        self.seed ^= self.seed >> 35;
-        self.seed ^= self.seed << 14;
-    }
-    // [low, high) の範囲のusizeの乱数を求める
-    fn gen_range<R: std::ops::RangeBounds<usize>>(&mut self, range: R) -> usize {
-        self._xorshift();
-        let std::ops::Bound::Included(&start) = range.start_bound() else { panic!(); };
-        let end = match range.end_bound() {
-            std::ops::Bound::Included(&x) => x + 1,
-            std::ops::Bound::Excluded(&x) => x,
-            _ => panic!(),
-        };
-        (start as u64 + self.seed % (end - start) as u64) as usize
-    }
-    // [0, 1] の範囲のf64の乱数を求める
-    fn gen(&mut self) -> f64 {
-        self._xorshift();
-        self.seed as f64 / u64::MAX as f64
+    #[allow(dead_code)]
+    impl XorshiftRng {
+        pub fn from_seed(seed: u64) -> Self { Self { seed, } }
+        fn _xorshift(&mut self) {
+            self.seed ^= self.seed << 3;
+            self.seed ^= self.seed >> 35;
+            self.seed ^= self.seed << 14;
+        }
+        // [low, high) の範囲のusizeの乱数を求める
+        pub fn gen_range<R: std::ops::RangeBounds<usize>>(&mut self, range: R) -> usize {
+            self._xorshift();
+            let std::ops::Bound::Included(&start) = range.start_bound() else { panic!(); };
+            let end = match range.end_bound() {
+                std::ops::Bound::Included(&x) => x + 1,
+                std::ops::Bound::Excluded(&x) => x,
+                _ => panic!(),
+            };
+            (start as u64 + self.seed % (end - start) as u64) as usize
+        }
+        // [0, 1] の範囲のf64の乱数を求める
+        pub fn gen(&mut self) -> f64 {
+            self._xorshift();
+            self.seed as f64 / u64::MAX as f64
+        }
     }
 }
+
 
 // make binary date for https://github.com/dj-on-github/sp800_22_tests
 // Refer https://tech.ateruimashin.com/2020/03/tools3/
@@ -65,7 +69,7 @@ use std::fs::File;
 use std::io::Write;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut rng = Rand::new_from_seed(998244353);
+    let mut rng = rand::XorshiftRng::from_seed(998244353);
     let mut file = File::create("./tools/sp800_22_tests/xorshift.bin")?;
     let buf: Vec<u8> = (0..(1024*1024)).map(|_| rng.gen_range(0..256) as u8).collect();
     file.write_all(&buf)?;
@@ -75,18 +79,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
-// cargo test benchmark1 --bin rand --release   1.4 sec（1億回）世間一般のrandクレート
+// cargo test benchmark1 --bin rand --release   1.0 sec（1億回）世間一般のrandクレート
 // cargo test benchmark2 --bin rand --release   2.3 sec（10億回）今回作成のxorshift
 
 
 #[cfg(test)]
 mod tests {
-    use rand::prelude::*;
+    use rand_org::prelude::*;
+    use crate::rand::XorshiftRng;
+
     use super::*;
 
     #[test]
     fn basic() {
-        let mut rng = Rand::new();
+        let mut rng = rand::xorshift_rng();
         for _ in 0..1000 {
             let random_range1 = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数
             assert!(5 <= random_range1 && random_range1 < 10);
@@ -95,11 +101,18 @@ mod tests {
             let random_uniform = rng.gen();               // [0, 1]のf64の一様乱数
             assert!(0.0 <= random_uniform && random_uniform <= 1.0);
         }
+        basic_sub(&mut rng);
+    }
+
+    // サブルーチン呼び出し形式が通常のrandと同等かどうかを見る
+    fn basic_sub(rng: &mut XorshiftRng) {
+        let random_range = rng.gen_range(0..10);
+        assert!(random_range < 10);
     }
 
     #[test]
     fn benchmark1_public_rand() {
-        let mut rng = rand::thread_rng();
+        let mut rng = SmallRng::from_entropy();
         let mut total = 0;
         for _ in 0..100_000_000 {
             let random_range = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数
@@ -111,7 +124,7 @@ mod tests {
 
     #[test]
     fn benchmark2_my_rand() {
-        let mut rng = Rand::new();
+        let mut rng = rand::xorshift_rng();
         let mut total = 0;
         for _ in 0..1_000_000_000 {
             let random_range = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数
