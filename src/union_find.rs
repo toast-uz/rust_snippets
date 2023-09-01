@@ -1,5 +1,10 @@
 /*
 Union Find
+経路圧縮を意識的に行わないことで、高速化・Undoを可能にする
+通常操作は、root_mut、union、same_mut、size_mutを使う
+変更がほぼ無いなら、root、same、sizeを使うと速い
+結合操作はUndoしたいなら、undoable_unionとundoを使う
+
 Refer https://github.com/rust-lang-ja/ac-library-rs
 Refer https://note.nkmk.me/python-union-find/
 Refer https://nyaannyaan.github.io/library/data-structure/rollback-union-find.hpp.html
@@ -19,29 +24,29 @@ impl UnionFind {
     fn is_root(&self, x: usize) -> bool { self.parents[x] < 0 }
     fn size_of_root(&self, x: usize) -> usize { -self.parents[x] as usize }
     // 木の根 再帰版  O(α(N)) 経路圧縮あり
-    fn root_mut(&mut self, x: usize) -> usize {
+    fn root(&mut self, x: usize) -> usize {
         if self.is_root(x) { x } else {
-            self.parents[x] = self.root_mut(self.parents[x] as usize) as isize;
+            self.parents[x] = self.root(self.parents[x] as usize) as isize;
             self.parents[x] as usize
         }
     }
     // 経路圧縮なし
-    fn root(&self, x: usize) -> usize {
-        if self.is_root(x) { x } else { self.root(self.parents[x] as usize) }
+    fn root_wo_compress(&self, x: usize) -> usize {
+        if self.is_root(x) { x } else { self.root_wo_compress(self.parents[x] as usize) }
     }
     // まとめて経路圧縮する sameやsizeをたくさん操作する前にやっておきたい
     fn squeeze(&mut self) {
         self.clear_history();
-        (0..self.parents.len()).for_each(|i| { self.root_mut(i); });
+        (0..self.parents.len()).for_each(|i| { self.root(i); });
     }
     // 木を結合する  O(α(N))
     fn union(&mut self, x: usize, y: usize) {
-        let x = self.root_mut(x);
-        let y = self.root_mut(y);
+        let x = self.root(x);
+        let y = self.root(y);
         self._union_roots(x, y, false);
     }
     fn undoable_union(&mut self, x: usize, y: usize) {
-        self._union_roots(self.root(x), self.root(y), true);
+        self._union_roots(self.root_wo_compress(x), self.root_wo_compress(y), true);
     }
     fn _union_roots(&mut self, mut x: usize, mut y: usize, history: bool) {  // 根同士の結合
         if history {
@@ -60,14 +65,14 @@ impl UnionFind {
     }
     fn clear_history(&mut self) { self.history = Vec::new(); }
     // 同じ木に属するか  O(α(N))
-    fn same_mut(&mut self, x: usize, y: usize) -> bool { self.root_mut(x) == self.root_mut(y) }
-    fn same(&self, x: usize, y: usize) -> bool { self.root(x) == self.root(y) }
+    fn same(&mut self, x: usize, y: usize) -> bool { self.root(x) == self.root(y) }
+    fn same_wo_compress(&self, x: usize, y: usize) -> bool { self.root_wo_compress(x) == self.root_wo_compress(y) }
     // 木のサイズ     O(α(N))
-    fn size_mut(&mut self, x: usize) -> usize {
-        let y = self.root_mut(x);
+    fn size(&mut self, x: usize) -> usize {
+        let y = self.root(x);
         self.size_of_root(y)
     }
-    fn size(&self, x: usize) -> usize { self.size_of_root(self.root(x)) }
+    fn size_wo_compress(&self, x: usize) -> usize { self.size_of_root(self.root_wo_compress(x)) }
 
     // その他の参照関数
     // 木の根の列挙 O(N)
@@ -124,7 +129,7 @@ fn main() {
         if p == 0 {
             uf.union(a, b);
         } else {
-            println!("{}", if uf.same(a, b) { "Yes" } else { "No" });
+            println!("{}", if uf.same_wo_compress(a, b) { "Yes" } else { "No" });
         }
     }
 }
@@ -133,9 +138,9 @@ fn main() {
 // テストとベンチマーク
 // cargo test benchmark1 --bin union_find --release    1.4 sec
 // cargo test benchmark2 --bin union_find --release    2.6 sec（Undo機能未利用 10万回）
-// cargo test benchmark3 --bin union_find --release    1.2 sec（Undo機能利用 1億回）
-// cargo test benchmark4 --bin union_find --release    1.1 sec（スコアフル計算 1万回）
-// cargo test benchmark5 --bin union_find --release    2.3 sec（スコア差分計算 1000万回）
+// cargo test benchmark3 --bin union_find --release    2.3 sec（Undo機能利用 1億回）
+// cargo test benchmark4 --bin union_find --release    1.4 sec（スコアフル計算 1万回）
+// cargo test benchmark5 --bin union_find --release    2.4 sec（スコア差分計算 1000万回）
 
 #[cfg(test)]
 mod tests {
@@ -172,12 +177,12 @@ mod tests {
         ];
         for i in 0..n {
             for j in 0..n {
-                assert_eq!(uf.same(i, j), same[i][j]);
+                assert_eq!(uf.same_wo_compress(i, j), same[i][j]);
             }
         }
         let size = vec![4, 2, 2, 2, 4, 2, 1, 4, 4, 1];
         for i in 0..n {
-            assert_eq!(uf.size(i), size[i]);
+            assert_eq!(uf.size_wo_compress(i), size[i]);
         }
         assert_eq!(uf.group_count(), 5);
     }
@@ -214,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn benchmark2_undo_with_clone() {
+    fn benchmark2_undo_by_clone() {
         let n = 100_000;
         let mut uf = UnionFind::new(n);
         for i in 0..(n - 2) {
@@ -222,9 +227,9 @@ mod tests {
         }
         for _ in 0..100_000 {
             let mut uf1 = uf.clone();
-            assert!(!uf1.same_mut(n - 2, n - 1));
+            assert!(!uf1.same(n - 2, n - 1));
             uf1.union(n - 2, n - 1);
-            assert!(uf1.same_mut(n - 2, n - 1));
+            assert!(uf1.same(n - 2, n - 1));
         }
     }
 
