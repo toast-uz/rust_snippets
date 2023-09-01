@@ -5,14 +5,14 @@ Refer https://www.cepstrum.co.jp/hobby/xorshift/xorshift.html
 
 Usage
 
-let mut rng = rand::xorshift_rng();
-(let mut rng = rand::XorshiftRng::from_seed(seed);)
+let mut rng = xorshift_rand::xorshift_rng();
+(let mut rng = xorshift_rand::XorshiftRng::from_seed(seed);)
 let random_range = rng.gen_range(0..10);    // [0, 10)のusizeの一様乱数
 let random_range = rng.gen_range(0..=10);   // [0, 10]のusizeの一様乱数
 let random_uniform = rng.gen();             // [0, 1]のf64の一様乱数
 */
 
-mod rand {
+mod xorshift_rand {
     use std::time::Instant;
     #[allow(dead_code)]
     pub fn xorshift_rng() -> XorshiftRng { XorshiftRng::from_seed(Instant::now().elapsed().as_nanos() as u64) }
@@ -85,14 +85,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
-    use rand_org::prelude::*;
-    use crate::rand::XorshiftRng;
+    use rand::prelude::*;
+    use crate::xorshift_rand::XorshiftRng;
 
     use super::*;
 
     #[test]
     fn basic() {
-        let mut rng = rand::xorshift_rng();
+        let mut rng = xorshift_rand::xorshift_rng();
         for _ in 0..1000 {
             let random_range1 = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数
             assert!(5 <= random_range1 && random_range1 < 10);
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn benchmark2_my_rand() {
-        let mut rng = rand::xorshift_rng();
+        let mut rng = xorrand::xorshift_rng();
         let mut total = 0;
         for _ in 0..1_000_000_000 {
             let random_range = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数
