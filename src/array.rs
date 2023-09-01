@@ -1,72 +1,78 @@
-use std::hash::Hash;
-use std::collections::HashMap;
-use std::hash::BuildHasherDefault;
-use itertools::Itertools;
-use rustc_hash::FxHasher;
-use ac_library::fenwicktree::FenwickTree;
+mod kyopro_array {
+    use std::hash::Hash;
+    use std::collections::HashMap;
+    use std::hash::BuildHasherDefault;
+    use itertools::Itertools;
+    use rustc_hash::FxHasher;
+    use ac_library::fenwicktree::FenwickTree;
 
-type Hasher = BuildHasherDefault<FxHasher>;
-// PartialOrd は、比較結果がNoneにはならない前提とする
-const ERR_PARTIALORD: &str = "PartialOrd cannot be None";
+    type Hasher = BuildHasherDefault<FxHasher>;
+    // PartialOrd は、比較結果がNoneにはならない前提とする
+    const ERR_PARTIALORD: &str = "PartialOrd cannot be None";
 
-// 引数順序
-pub trait ArgPartialOrd<T> {
-    fn argmax(&self) -> Option<usize>;
-    fn argmin(&self) -> Option<usize>;
-    fn argsort(&self) -> Vec<usize>;
-}
+    // 引数順序
+    pub trait ArgPartialOrd<T> {
+        fn argmax(&self) -> Option<usize>;
+        fn argmin(&self) -> Option<usize>;
+        fn argsort(&self) -> Vec<usize>;
+    }
 
-impl<T: PartialOrd> ArgPartialOrd<T> for [T] {
-    fn argmax(&self) -> Option<usize> { (0..self.len()).rev().max_by(|&i, &j|
-        self[i].partial_cmp(&self[j]).expect(ERR_PARTIALORD)) } // 最初のインデックスが返るようにrevを使う
-    fn argmin(&self) -> Option<usize> { (0..self.len()).min_by(|&i, &j|
-        self[i].partial_cmp(&self[j]).expect(ERR_PARTIALORD)) }
-    fn argsort(&self) -> Vec<usize> { (0..self.len()).sorted_by(|&i, &j|
-        self[i].partial_cmp(&self[j]).expect(ERR_PARTIALORD)).collect() }
-}
+    impl<T: PartialOrd> ArgPartialOrd<T> for [T] {
+        fn argmax(&self) -> Option<usize> { (0..self.len()).rev().max_by(|&i, &j|
+            self[i].partial_cmp(&self[j]).expect(ERR_PARTIALORD)) } // 最初のインデックスが返るようにrevを使う
+        fn argmin(&self) -> Option<usize> { (0..self.len()).min_by(|&i, &j|
+            self[i].partial_cmp(&self[j]).expect(ERR_PARTIALORD)) }
+        fn argsort(&self) -> Vec<usize> { (0..self.len()).sorted_by(|&i, &j|
+            self[i].partial_cmp(&self[j]).expect(ERR_PARTIALORD)).collect() }
+    }
 
-// 座標圧縮(initは圧縮後の最小値)
-pub trait CoordinateCompress<T> {
-    fn coordinate_compress(&self, init: usize) -> Vec<usize>;
-}
+    // 座標圧縮(initは圧縮後の最小値)
+    pub trait CoordinateCompress<T> {
+        fn coordinate_compress(&self, init: usize) -> Vec<usize>;
+    }
 
-impl<T: Clone + PartialOrd> CoordinateCompress<T> for [T] {
-    fn coordinate_compress(&self, init: usize) -> Vec<usize> {
-        let mut xs: Vec<T> = self.to_vec();
-        xs.sort_by(|x, y| x.partial_cmp(y).expect(ERR_PARTIALORD)); xs.dedup();
-        self.iter().map(|x| xs.binary_search_by(|y|
-            y.partial_cmp(x).expect(ERR_PARTIALORD)).unwrap() + init).collect()
+    impl<T: Clone + PartialOrd> CoordinateCompress<T> for [T] {
+        fn coordinate_compress(&self, init: usize) -> Vec<usize> {
+            let mut xs: Vec<T> = self.to_vec();
+            xs.sort_by(|x, y| x.partial_cmp(y).expect(ERR_PARTIALORD)); xs.dedup();
+            self.iter().map(|x| xs.binary_search_by(|y|
+                y.partial_cmp(x).expect(ERR_PARTIALORD)).unwrap() + init).collect()
+        }
+    }
+
+    // T -> order_id (0-indexed)
+    pub trait ToOrderId<T> {
+        fn to_order_id(&self) -> HashMap<T, usize, Hasher>;
+    }
+
+    impl<T: Clone + Eq + Hash> ToOrderId<T> for [T] {
+        fn to_order_id(&self) -> HashMap<T, usize, Hasher> {
+            (0..self.len()).map(|i| (self[i].clone(), i)).collect()
+        }
+    }
+
+    // 転倒数
+    pub trait InversionNumber<T> {
+        fn inversion_number(&self) -> usize;
+    }
+
+    impl<T: Clone + PartialOrd> InversionNumber<T> for [T] {
+        fn inversion_number(&self) -> usize {
+            let compressed = self.coordinate_compress(1);
+            let Some(&max) = compressed.iter().max() else { return 0; };
+            let mut bit = FenwickTree::new(max, 0usize);
+            let mut res = 0;
+            for &x in &compressed {
+                res += bit.sum(x..max);
+                bit.add(x - 1, 1);
+             }
+            res
+        }
     }
 }
 
-// T -> order_id (0-indexed)
-pub trait ToOrderId<T> {
-    fn to_order_id(&self) -> HashMap<T, usize, Hasher>;
-}
+fn main() {
 
-impl<T: Clone + Eq + Hash> ToOrderId<T> for [T] {
-    fn to_order_id(&self) -> HashMap<T, usize, Hasher> {
-        (0..self.len()).map(|i| (self[i].clone(), i)).collect()
-    }
-}
-
-// 転倒数
-pub trait InversionNumber<T> {
-    fn inversion_number(&self) -> usize;
-}
-
-impl<T: Clone + PartialOrd> InversionNumber<T> for [T] {
-    fn inversion_number(&self) -> usize {
-        let compressed = self.coordinate_compress(1);
-        let Some(&max) = compressed.iter().max() else { return 0; };
-        let mut bit = FenwickTree::new(max, 0usize);
-        let mut res = 0;
-        for &x in &compressed {
-            res += bit.sum(x..max);
-            bit.add(x - 1, 1);
-         }
-        res
-    }
 }
 
 ///////////////////////////////////////////////////////////
@@ -76,7 +82,7 @@ impl<T: Clone + PartialOrd> InversionNumber<T> for [T] {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::kyopro_array::*;
 
     #[test]
     fn basic() {
