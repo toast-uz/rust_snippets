@@ -5,8 +5,8 @@ use proconio::input;
 //use proconio::input_interactive;  // interactiveな問題用
 //use itertools::{iproduct, Itertools};
 //use rustc_hash::{FxHashSet, FxHashMap};
-use rand::prelude::*;
 use std::time::Instant;
+use xorshift_rand::*;
 
 const LIMIT: f64 = 1.9;
 const DEBUG_LEVEL: usize = 0;
@@ -15,7 +15,7 @@ macro_rules! dbg {( $level:expr, $( $x:expr ),* ) => ( if DEBUG_LEVEL >= $level 
 
 fn main() {
     let timer = Instant::now();
-    let mut rng = SmallRng::from_entropy();
+    let mut rng = xorshift_rng();
     let e = Env::new();
     let mut a = Agent::new(&e);
     a.optimize(&e, &mut rng, &timer, LIMIT);
@@ -55,7 +55,7 @@ impl Agent {
         self.score = self.compute_score(e);
     }
 
-    fn optimize(&mut self, e: &Env, rng: &mut SmallRng, timer: &Instant, limit: f64) {
+    fn optimize(&mut self, e: &Env, rng: &mut XorshiftRng, timer: &Instant, limit: f64) {
         let start_time = timer.elapsed().as_secs_f64();
         let mut best = self.clone();
         let mut temp;
@@ -75,7 +75,7 @@ impl Agent {
             if time >= limit { break; }
             temp = Self::START_TEMP + (Self::END_TEMP - Self::START_TEMP) * (time - start_time) / (limit - start_time);
             let prob = (score_diff as f64 / temp).exp();
-            if prob > rng.gen::<f64>() || neighbor.forced() { // 確率prob or 強制近傍か で遷移する
+            if prob > rng.gen() || neighbor.forced() { // 確率prob or 強制近傍か で遷移する
                 self.transfer_neighbor(e, neighbor);
                 self.score += score_diff;
                 // ベストと比較してベストなら更新する
@@ -91,8 +91,8 @@ impl Agent {
     }
 
     // 近傍を選択する
-    fn select_neighbor(&self, _e: &Env, rng: &mut SmallRng) -> Neighbor {
-        let p = rng.gen::<f64>();
+    fn select_neighbor(&self, _e: &Env, rng: &mut XorshiftRng) -> Neighbor {
+        let p = rng.gen();
         if p < 0.5 {
             Neighbor::None
         } else {
@@ -156,3 +156,9 @@ impl Neighbor {
         false
     }
 }
+
+// 実際に使う場合は、各モジュールの中身をコピーする
+mod xorshift_rand;
+mod kyopro_args;
+mod kyopro_array;
+mod union_find;

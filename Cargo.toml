@@ -88,9 +88,9 @@ name = "ahc_template"
 path = "src/ahc_template.rs"
 
 [[bin]]
-name = "args"
-path = "src/args.rs"
+name = "kyopro_args"
+path = "src/kyopro_args.rs"
 
 [[bin]]
-name = "array"
-path = "src/array.rs"
+name = "kyopro_array"
+path = "src/kyopro_array.rs"

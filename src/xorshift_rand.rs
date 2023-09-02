@@ -12,80 +12,81 @@ let random_range = rng.gen_range(0..=10);   // [0, 10]のusizeの一様乱数
 let random_uniform = rng.gen();             // [0, 1]のf64の一様乱数
 */
 
+use std::time::Instant;
+use rustc_hash::FxHashSet;
+
 #[allow(dead_code)]
-mod xorshift_rand {
-    use std::time::Instant;
-    use rustc_hash::FxHashSet;
+pub fn xorshift_rng() -> XorshiftRng {
+    XorshiftRng::from_seed(Instant::now().elapsed().as_nanos() as u64)
+}
+pub struct XorshiftRng { seed: u64, }
 
-    pub fn xorshift_rng() -> XorshiftRng {
-        XorshiftRng::from_seed(Instant::now().elapsed().as_nanos() as u64)
+#[allow(dead_code)]
+impl XorshiftRng {
+    pub fn from_seed(seed: u64) -> Self { Self { seed, } }
+    fn _xorshift(&mut self) {
+        self.seed ^= self.seed << 3;
+        self.seed ^= self.seed >> 35;
+        self.seed ^= self.seed << 14;
     }
-    pub struct XorshiftRng { seed: u64, }
-
-    impl XorshiftRng {
-        pub fn from_seed(seed: u64) -> Self { Self { seed, } }
-        fn _xorshift(&mut self) {
-            self.seed ^= self.seed << 3;
-            self.seed ^= self.seed >> 35;
-            self.seed ^= self.seed << 14;
-        }
-        // [low, high) の範囲のusizeの乱数を求める
-        pub fn gen_range<R: std::ops::RangeBounds<usize>>(&mut self, range: R) -> usize {
-            let (start, end) = Self::unsafe_decode_range_(&range);
+    // [low, high) の範囲のusizeの乱数を求める
+    pub fn gen_range<R: std::ops::RangeBounds<usize>>(&mut self, range: R) -> usize {
+        let (start, end) = Self::unsafe_decode_range_(&range);
+        self._xorshift();
+        (start as u64 + self.seed % (end - start) as u64) as usize
+    }
+    // [low, high) の範囲から重複なくm個のusizeの乱数を求める
+    pub fn gen_range_multiple<R: std::ops::RangeBounds<usize>>(&mut self, range: R, m: usize) -> Vec<usize> {
+        let (start, end) = Self::unsafe_decode_range_(&range);
+        assert!(m <= end - start);
+        let many = m > (end - start) / 2; // mが半分より大きいか
+        let n = if many { end - start - m } else { m };
+        let mut res = FxHashSet::default();
+        while res.len() < n {   // 半分より小さい方の数をランダムに選ぶ
             self._xorshift();
-            (start as u64 + self.seed % (end - start) as u64) as usize
+            let x = (start as u64 + self.seed % (end - start) as u64) as usize;
+            res.insert(x);
         }
-        // [low, high) の範囲から重複なくm個のusizeの乱数を求める
-        pub fn gen_range_multiple<R: std::ops::RangeBounds<usize>>(&mut self, range: R, m: usize) -> Vec<usize> {
-            let (start, end) = Self::unsafe_decode_range_(&range);
-            assert!(m <= end - start);
-            let many = m > (end - start) / 2; // mが半分より大きいか
-            let n = if many { end - start - m } else { m };
-            let mut res = FxHashSet::default();
-            while res.len() < n {   // 半分より小さい方の数をランダムに選ぶ
-                self._xorshift();
-                let x = (start as u64 + self.seed % (end - start) as u64) as usize;
-                res.insert(x);
-            }
-            (start..end).filter(|&x| many ^ res.contains(&x)).collect()
-        }
-        // rangeをもとに半開区間の範囲[start, end)を求める
-        fn unsafe_decode_range_<R: std::ops::RangeBounds<usize>>(range: &R) -> (usize, usize) {
-            let std::ops::Bound::Included(&start) = range.start_bound() else { panic!(); };
-            let end = match range.end_bound() {
-                std::ops::Bound::Included(&x) => x + 1,
-                std::ops::Bound::Excluded(&x) => x,
-                _ => panic!(),
-            };
-            (start, end)
-        }
-        // [0, 1] の範囲のf64の乱数を求める
-        pub fn gen(&mut self) -> f64 {
-            self._xorshift();
-            self.seed as f64 / u64::MAX as f64
-        }
+        (start..end).filter(|&x| many ^ res.contains(&x)).collect()
     }
-
-    pub trait SliceXorshiftRandom<T> {
-        fn choose(&self, rng: &mut XorshiftRng) -> T;
-        fn choose_multiple(&self, rng: &mut XorshiftRng, m: usize) -> Vec<T>;
-        fn shuffle(&mut self, rng: &mut XorshiftRng);
+    // rangeをもとに半開区間の範囲[start, end)を求める
+    fn unsafe_decode_range_<R: std::ops::RangeBounds<usize>>(range: &R) -> (usize, usize) {
+        let std::ops::Bound::Included(&start) = range.start_bound() else { panic!(); };
+        let end = match range.end_bound() {
+            std::ops::Bound::Included(&x) => x + 1,
+            std::ops::Bound::Excluded(&x) => x,
+            _ => panic!(),
+        };
+        (start, end)
     }
+    // [0, 1] の範囲のf64の乱数を求める
+    pub fn gen(&mut self) -> f64 {
+        self._xorshift();
+        self.seed as f64 / u64::MAX as f64
+    }
+}
 
-    impl<T: Clone> SliceXorshiftRandom<T> for [T] {
-        fn choose(&self, rng: &mut XorshiftRng) -> T {
-            let x = rng.gen_range(0..self.len());
-            self[x].clone()
-        }
-        fn choose_multiple(&self, rng: &mut XorshiftRng, m: usize) -> Vec<T> {
-            let selected = rng.gen_range_multiple(0..self.len(), m);
-            selected.iter().map(|&i| self[i].clone()).collect()
-        }
-        fn shuffle(&mut self, rng: &mut XorshiftRng) {
-            for i in (1..self.len()).rev() {
-                let x = rng.gen_range(0..=i);
-                self.swap(i, x);
-            }
+#[allow(dead_code)]
+pub trait SliceXorshiftRandom<T> {
+    fn choose(&self, rng: &mut XorshiftRng) -> T;
+    fn choose_multiple(&self, rng: &mut XorshiftRng, m: usize) -> Vec<T>;
+    fn shuffle(&mut self, rng: &mut XorshiftRng);
+}
+
+#[allow(dead_code)]
+impl<T: Clone> SliceXorshiftRandom<T> for [T] {
+    fn choose(&self, rng: &mut XorshiftRng) -> T {
+        let x = rng.gen_range(0..self.len());
+        self[x].clone()
+    }
+    fn choose_multiple(&self, rng: &mut XorshiftRng, m: usize) -> Vec<T> {
+        let selected = rng.gen_range_multiple(0..self.len(), m);
+        selected.iter().map(|&i| self[i].clone()).collect()
+    }
+    fn shuffle(&mut self, rng: &mut XorshiftRng) {
+        for i in (1..self.len()).rev() {
+            let x = rng.gen_range(0..=i);
+            self.swap(i, x);
         }
     }
 }
@@ -112,8 +113,8 @@ random_excursion_variant_test            0.07994960739002104 PASS
 */
 use std::fs::File;
 use std::io::Write;
-use crate::xorshift_rand::XorshiftRng;
 
+#[allow(dead_code)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rng = XorshiftRng::from_seed(998244353);
     let mut file = File::create("./tools/sp800_22_tests/xorshift.bin")?;
@@ -133,13 +134,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use rand::prelude::*;
     use itertools::Itertools;
-    use crate::xorshift_rand::XorshiftRng;
-
     use super::*;
 
     #[test]
     fn basic() {
-        let mut rng = xorshift_rand::xorshift_rng();
+        let mut rng = xorshift_rng();
         for _ in 0..1000 {
             let random_range1 = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数
             assert!(5 <= random_range1 && random_range1 < 10);
@@ -181,7 +180,7 @@ mod tests {
 
     #[test]
     fn benchmark2_my_rand() {
-        let mut rng = xorshift_rand::xorshift_rng();
+        let mut rng = xorshift_rng();
         let mut total = 0;
         for _ in 0..1_000_000_000 {
             let random_range = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数

@@ -10,105 +10,104 @@ Refer https://note.nkmk.me/python-union-find/
 Refer https://nyaannyaan.github.io/library/data-structure/rollback-union-find.hpp.html
 */
 
+use rustc_hash::{FxHashSet, FxHashMap};
+
 #[allow(dead_code)]
-mod union_find {
-    use std::collections::{HashSet, HashMap};
+#[derive(Debug, Clone, Default)]
+pub struct UnionFind {
+    parents: Vec<isize>,
+    history: Vec<(usize, isize)>,   // with_capacityで確保すると遅くなる・・？
+}
 
-    #[derive(Debug, Clone, Default)]
-    pub struct UnionFind {
-        parents: Vec<isize>,
-        history: Vec<(usize, isize)>,   // with_capacityで確保すると遅くなる・・？
+#[allow(dead_code)]
+impl UnionFind {
+    pub fn new(n: usize) -> Self { Self { parents: vec![-1; n], ..Default::default() } }
+    pub fn is_root(&self, x: usize) -> bool { self.parents[x] < 0 }
+    pub fn size_of_root(&self, x: usize) -> usize { -self.parents[x] as usize }
+    // 木の根 再帰版  O(α(N)) 経路圧縮あり
+    pub fn root(&mut self, x: usize) -> usize {
+        if self.is_root(x) { x } else {
+            self.parents[x] = self.root(self.parents[x] as usize) as isize;
+            self.parents[x] as usize
+        }
     }
+    // 経路圧縮なし
+    pub fn root_wo_compress(&self, x: usize) -> usize {
+        if self.is_root(x) { x } else { self.root_wo_compress(self.parents[x] as usize) }
+    }
+    // まとめて経路圧縮する sameやsizeをたくさん操作する前にやっておきたい
+    pub fn squeeze(&mut self) {
+        self.clear_history();
+        (0..self.parents.len()).for_each(|i| { self.root(i); });
+    }
+    // 木を結合する  O(α(N))
+    pub fn union(&mut self, x: usize, y: usize) {
+        let x = self.root(x);
+        let y = self.root(y);
+        self.union_roots_(x, y, false);
+    }
+    pub fn undoable_union(&mut self, x: usize, y: usize) {
+        self.union_roots_(self.root_wo_compress(x), self.root_wo_compress(y), true);
+    }
+    fn union_roots_(&mut self, mut x: usize, mut y: usize, history: bool) {  // 根同士の結合
+        if history {
+            self.history.push((x, self.parents[x]));
+            self.history.push((y, self.parents[y]));
+        }
+        if x == y { return; }
+        if self.parents[x] > self.parents[y] { std::mem::swap(&mut x, &mut y); }
+        self.parents[x] += self.parents[y];
+        self.parents[y] = x as isize;
+    }
+    pub fn undo(&mut self) {    // undoable_unionのアンドゥ、historyを2回分ロールバックする
+        assert!(self.history.len() >= 2);
+        if let Some((x, y)) = self.history.pop() { self.parents[x] = y; }
+        if let Some((x, y)) = self.history.pop() { self.parents[x] = y; }
+    }
+    pub fn clear_history(&mut self) { self.history = Vec::new(); }
+    // 同じ木に属するか  O(α(N))
+    pub fn same(&mut self, x: usize, y: usize) -> bool { self.root(x) == self.root(y) }
+    pub fn same_wo_compress(&self, x: usize, y: usize) -> bool { self.root_wo_compress(x) == self.root_wo_compress(y) }
+    // 木のサイズ     O(α(N))
+    pub fn size(&mut self, x: usize) -> usize {
+        let y = self.root(x);
+        self.size_of_root(y)
+    }
+    pub fn size_wo_compress(&self, x: usize) -> usize { self.size_of_root(self.root_wo_compress(x)) }
 
-    impl UnionFind {
-        pub fn new(n: usize) -> Self { Self { parents: vec![-1; n], ..Default::default() } }
-        pub fn is_root(&self, x: usize) -> bool { self.parents[x] < 0 }
-        pub fn size_of_root(&self, x: usize) -> usize { -self.parents[x] as usize }
-        // 木の根 再帰版  O(α(N)) 経路圧縮あり
-        pub fn root(&mut self, x: usize) -> usize {
-            if self.is_root(x) { x } else {
-                self.parents[x] = self.root(self.parents[x] as usize) as isize;
-                self.parents[x] as usize
-            }
-        }
-        // 経路圧縮なし
-        pub fn root_wo_compress(&self, x: usize) -> usize {
-            if self.is_root(x) { x } else { self.root_wo_compress(self.parents[x] as usize) }
-        }
-        // まとめて経路圧縮する sameやsizeをたくさん操作する前にやっておきたい
-        pub fn squeeze(&mut self) {
-            self.clear_history();
-            (0..self.parents.len()).for_each(|i| { self.root(i); });
-        }
-        // 木を結合する  O(α(N))
-        pub fn union(&mut self, x: usize, y: usize) {
-            let x = self.root(x);
-            let y = self.root(y);
-            self.union_roots_(x, y, false);
-        }
-        pub fn undoable_union(&mut self, x: usize, y: usize) {
-            self.union_roots_(self.root_wo_compress(x), self.root_wo_compress(y), true);
-        }
-        fn union_roots_(&mut self, mut x: usize, mut y: usize, history: bool) {  // 根同士の結合
-            if history {
-                self.history.push((x, self.parents[x]));
-                self.history.push((y, self.parents[y]));
-            }
-            if x == y { return; }
-            if self.parents[x] > self.parents[y] { std::mem::swap(&mut x, &mut y); }
-            self.parents[x] += self.parents[y];
-            self.parents[y] = x as isize;
-        }
-        pub fn undo(&mut self) {    // undoable_unionのアンドゥ、historyを2回分ロールバックする
-            assert!(self.history.len() >= 2);
-            if let Some((x, y)) = self.history.pop() { self.parents[x] = y; }
-            if let Some((x, y)) = self.history.pop() { self.parents[x] = y; }
-        }
-        pub fn clear_history(&mut self) { self.history = Vec::new(); }
-        // 同じ木に属するか  O(α(N))
-        pub fn same(&mut self, x: usize, y: usize) -> bool { self.root(x) == self.root(y) }
-        pub fn same_wo_compress(&self, x: usize, y: usize) -> bool { self.root_wo_compress(x) == self.root_wo_compress(y) }
-        // 木のサイズ     O(α(N))
-        pub fn size(&mut self, x: usize) -> usize {
-            let y = self.root(x);
-            self.size_of_root(y)
-        }
-        pub fn size_wo_compress(&self, x: usize) -> usize { self.size_of_root(self.root_wo_compress(x)) }
-
-        // その他の参照関数
-        // 木の根の列挙 O(N)
-        pub fn roots(&self) -> HashSet<usize> {
-            (0..self.parents.len()).filter(|&x| self.is_root(x)).collect()
-        }
-        // historyをもとに、木の根の減少差分を求める
-        pub fn roots_diff(&self) -> HashSet<usize> {
-            self.history.iter().map(|&(x, _)| x)
-                .filter(|&x| !self.is_root(x)).collect()
-        }
-        // グループ数  O(N)
-        pub fn group_count(&self) -> usize { self.roots().len() }
-        pub fn group_count_diff(&self) -> usize { self.roots_diff().len() }
-        // 木のサイズの列挙 O(N)
-        pub fn sizes(&self) -> Vec<usize> {
-            (0..self.parents.len()).filter(|&x| self.is_root(x))
-                .map(|x| self.size_of_root(x)).collect()
-        }
-        // 典型スコア（2乗ノルム）
-        fn norm2_(v: &[usize]) -> usize { v.iter().map(|&size| size.pow(2)).sum() }
-        pub fn norm2(&self) -> usize { Self::norm2_(&self.sizes()) }
-        // historyをもとに、サイズ差分（削除されたサイズ列, 追加されたサイズ列）を求める
-        pub fn sizes_diff(&self) -> (Vec<usize>, Vec<usize>) {
-            let hm: HashMap<usize, isize> = self.history.iter().rev().cloned().collect();
-            let res1 = hm.iter().map(|(_, &size)| -size as usize).collect();
-            let res2 = hm.keys()
-                .filter(|&&x| self.is_root(x))
-                .map(|&x| self.size_of_root(x)).collect();
-            (res1, res2)
-        }
-        pub fn norm2_diff(&self) -> usize {
-            let (remove, append) = self.sizes_diff();
-            Self::norm2_(&append) - Self::norm2_(&remove)
-        }
+    // その他の参照関数
+    // 木の根の列挙 O(N)
+    pub fn roots(&self) -> FxHashSet<usize> {
+        (0..self.parents.len()).filter(|&x| self.is_root(x)).collect()
+    }
+    // historyをもとに、木の根の減少差分を求める
+    pub fn roots_diff(&self) -> FxHashSet<usize> {
+        self.history.iter().map(|&(x, _)| x)
+            .filter(|&x| !self.is_root(x)).collect()
+    }
+    // グループ数  O(N)
+    pub fn group_count(&self) -> usize { self.roots().len() }
+    pub fn group_count_diff(&self) -> usize { self.roots_diff().len() }
+    // 木のサイズの列挙 O(N)
+    pub fn sizes(&self) -> Vec<usize> {
+        (0..self.parents.len()).filter(|&x| self.is_root(x))
+            .map(|x| self.size_of_root(x)).collect()
+    }
+    // 典型スコア（2乗ノルム）
+    fn norm2_(v: &[usize]) -> usize { v.iter().map(|&size| size.pow(2)).sum() }
+    pub fn norm2(&self) -> usize { Self::norm2_(&self.sizes()) }
+    // historyをもとに、サイズ差分（削除されたサイズ列, 追加されたサイズ列）を求める
+    pub fn sizes_diff(&self) -> (Vec<usize>, Vec<usize>) {
+        let hm: FxHashMap<usize, isize> = self.history.iter().rev().cloned().collect();
+        let res1 = hm.iter().map(|(_, &size)| -size as usize).collect();
+        let res2 = hm.keys()
+            .filter(|&&x| self.is_root(x))
+            .map(|&x| self.size_of_root(x)).collect();
+        (res1, res2)
+    }
+    pub fn norm2_diff(&self) -> usize {
+        let (remove, append) = self.sizes_diff();
+        Self::norm2_(&append) - Self::norm2_(&remove)
     }
 }
 
@@ -117,7 +116,6 @@ mod union_find {
 // https://atcoder.jp/contests/atc001/tasks/unionfind_a
 // 39ms
 
-use union_find::UnionFind;
 use proconio::input;
 use proconio::fastout;
 
@@ -148,13 +146,14 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
-    use crate::union_find::UnionFind;
+    use rustc_hash::FxHashSet;
+    use super::UnionFind;
 
     #[test]
     fn basic() {
         let n = 10;
         let mut uf = UnionFind::new(n);
-        assert_eq!(uf.roots(), (0..n).collect::<HashSet<usize>>());
+        assert_eq!(uf.roots(), (0..n).collect::<FxHashSet<usize>>());
         assert_eq!(uf.norm2(), 10);
         uf.union(1, 5);
         assert_eq!(uf.norm2(), 12);
