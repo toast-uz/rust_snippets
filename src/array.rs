@@ -1,12 +1,9 @@
 mod kyopro_array {
     use std::hash::Hash;
-    use std::collections::HashMap;
-    use std::hash::BuildHasherDefault;
     use itertools::Itertools;
-    use rustc_hash::FxHasher;
+    use rustc_hash::FxHashMap;
     use ac_library::fenwicktree::FenwickTree;
 
-    type Hasher = BuildHasherDefault<FxHasher>;
     // PartialOrd は、比較結果がNoneにはならない前提とする
     const ERR_PARTIALORD: &str = "PartialOrd cannot be None";
 
@@ -42,11 +39,11 @@ mod kyopro_array {
 
     // T -> order_id (0-indexed)
     pub trait ToOrderId<T> {
-        fn to_order_id(&self) -> HashMap<T, usize, Hasher>;
+        fn to_order_id(&self) -> FxHashMap<T, usize>;
     }
 
     impl<T: Clone + Eq + Hash> ToOrderId<T> for [T] {
-        fn to_order_id(&self) -> HashMap<T, usize, Hasher> {
+        fn to_order_id(&self) -> FxHashMap<T, usize> {
             (0..self.len()).map(|i| (self[i].clone(), i)).collect()
         }
     }
