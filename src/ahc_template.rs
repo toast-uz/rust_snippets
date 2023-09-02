@@ -7,9 +7,13 @@ use std::time::Instant;
 use xorshift_rand::*;
 
 const LIMIT: f64 = 1.9;
-const DEBUG_LEVEL: usize = 0;
 
-macro_rules! dbg {( $level:expr, $( $x:expr ),* ) => ( if DEBUG_LEVEL >= $level {eprintln!($( $x ),* );})}
+const DEBUG_BASE: usize = 1;
+// デバッグビットが立ったものだけ出力する
+const DEBUG_BIT: usize = DEBUG_BASE;
+//const DEBUG_BIT: usize = 0;     // 提出時には0する
+
+macro_rules! dbg {( $group:expr, $( $x:expr ),* ) => ( if DEBUG_BIT & $group > 0 {eprintln!($( $x ),* );})}
 
 fn main() {
     let timer = Instant::now();
@@ -63,7 +67,7 @@ impl Agent {
             if self.counter > best.counter + Self::PATIENCE {
                 best.counter = self.counter;
                 *self = best.clone();
-                dbg!(1, "counter:{} score:{} restart from the best", self.counter, self.score);
+                dbg!(DEBUG_BASE, "counter:{} score:{} restart from the best", self.counter, self.score);
             }
             // 遷移候補を決めて、遷移した場合のコスト差分を計算する
             let neighbor = self.select_neighbor(e, rng);
@@ -79,7 +83,7 @@ impl Agent {
                 // ベストと比較してベストなら更新する
                 if best.score < self.score {
                     best = self.clone();
-                    dbg!(1, "counter:{} score:{} new best", best.counter, best.score);
+                    dbg!(DEBUG_BASE, "counter:{} score:{} new best", best.counter, best.score);
                 }
             }
         }
