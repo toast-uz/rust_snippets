@@ -12,17 +12,16 @@ let random_range = rng.gen_range(0..=10);   // [0, 10]のusizeの一様乱数
 let random_uniform = rng.gen();             // [0, 1]のf64の一様乱数
 */
 
+#[allow(dead_code)]
 mod xorshift_rand {
     use std::time::Instant;
     use rustc_hash::FxHashSet;
 
-    #[allow(dead_code)]
     pub fn xorshift_rng() -> XorshiftRng {
         XorshiftRng::from_seed(Instant::now().elapsed().as_nanos() as u64)
     }
     pub struct XorshiftRng { seed: u64, }
 
-    #[allow(dead_code)]
     impl XorshiftRng {
         pub fn from_seed(seed: u64) -> Self { Self { seed, } }
         fn _xorshift(&mut self) {

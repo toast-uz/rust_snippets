@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 mod kyopro_array {
     use std::hash::Hash;
     use itertools::Itertools;

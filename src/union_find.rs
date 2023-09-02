@@ -10,6 +10,7 @@ Refer https://note.nkmk.me/python-union-find/
 Refer https://nyaannyaan.github.io/library/data-structure/rollback-union-find.hpp.html
 */
 
+#[allow(dead_code)]
 mod union_find {
     use std::collections::{HashSet, HashMap};
 
@@ -19,7 +20,6 @@ mod union_find {
         history: Vec<(usize, isize)>,   // with_capacityで確保すると遅くなる・・？
     }
 
-    #[allow(dead_code)]
     impl UnionFind {
         pub fn new(n: usize) -> Self { Self { parents: vec![-1; n], ..Default::default() } }
         pub fn is_root(&self, x: usize) -> bool { self.parents[x] < 0 }

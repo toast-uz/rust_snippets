@@ -1,4 +1,4 @@
-
+#[allow(dead_code)]
 mod kyopro_args {
     use regex::Regex;
     use itertools::Itertools;
