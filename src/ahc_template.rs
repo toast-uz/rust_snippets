@@ -6,14 +6,11 @@ use proconio::input_interactive;
 use std::time::Instant;
 use xorshift_rand::*;
 
-const LIMIT: f64 = 1.9;
+const LIMIT: f64 = 0.5;
+//const LIMIT: f64 = 1.9;     // 提出時には制限時間に合わせる
+const DEBUG: bool = true;     // 提出時にはfalseにする
 
-const DEBUG_BASE: usize = 1;
-// デバッグビットが立ったものだけ出力する
-const DEBUG_BIT: usize = DEBUG_BASE;
-//const DEBUG_BIT: usize = 0;     // 提出時には0する
-
-macro_rules! dbg {( $group:expr, $( $x:expr ),* ) => ( if DEBUG_BIT & $group > 0 {eprintln!($( $x ),* );})}
+macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );})}
 
 fn main() {
     let timer = Instant::now();
@@ -59,22 +56,22 @@ impl Agent {
 
     fn optimize(&mut self, e: &Env, rng: &mut XorshiftRng, timer: &Instant, limit: f64) {
         let start_time = timer.elapsed().as_secs_f64();
+        let mut time = start_time;
         let mut best = self.clone();
         let mut temp;
-        loop {
+        while time < limit {
             self.counter += 1;
             // PATIENCE回、ベスト更新されなかったら，現在のカウンターをベストにコピーして、ベストから再開する
             if self.counter > best.counter + Self::PATIENCE {
                 best.counter = self.counter;
                 *self = best.clone();
-                dbg!(DEBUG_BASE, "counter:{} score:{} restart from the best", self.counter, self.score);
+                dbg!("counter:{} score:{} restart from the best", self.counter, self.score);
             }
             // 遷移候補を決めて、遷移した場合のコスト差分を計算する
             let neighbor = self.select_neighbor(e, rng);
             let score_diff = self.compute_score_diff(e, neighbor);
             // 現在の温度を計算して遷移確率を求める
-            let time = timer.elapsed().as_secs_f64();
-            if time >= limit { break; }
+            time = timer.elapsed().as_secs_f64();
             temp = Self::START_TEMP + (Self::END_TEMP - Self::START_TEMP) * (time - start_time) / (limit - start_time);
             let prob = (score_diff as f64 / temp).exp();
             if prob > rng.gen() || neighbor.forced() { // 確率prob or 強制近傍か で遷移する
@@ -83,7 +80,7 @@ impl Agent {
                 // ベストと比較してベストなら更新する
                 if best.score < self.score {
                     best = self.clone();
-                    dbg!(DEBUG_BASE, "counter:{} score:{} new best", best.counter, best.score);
+                    dbg!("counter:{} score:{} new best", best.counter, best.score);
                 }
             }
         }
