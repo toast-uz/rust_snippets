@@ -13,7 +13,7 @@ let random_uniform = rng.gen();             // [0, 1]のf64の一様乱数
 */
 
 use std::time::Instant;
-use rustc_hash::FxHashSet;
+use rustc_hash::FxHashSet as HashSet;
 
 #[allow(dead_code)]
 pub fn xorshift_rng() -> XorshiftRng {
@@ -41,7 +41,7 @@ impl XorshiftRng {
         assert!(m <= end - start);
         let many = m > (end - start) / 2; // mが半分より大きいか
         let n = if many { end - start - m } else { m };
-        let mut res = FxHashSet::default();
+        let mut res = HashSet::default();
         while res.len() < n {   // 半分より小さい方の数をランダムに選ぶ
             self._xorshift();
             let x = (start as u64 + self.seed % (end - start) as u64) as usize;

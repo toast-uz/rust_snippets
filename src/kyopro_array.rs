@@ -1,6 +1,6 @@
 use std::hash::Hash;
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
+use rustc_hash::FxHashMap as HashMap;
 use ac_library::fenwicktree::FenwickTree;
 
 // PartialOrd は、比較結果がNoneにはならない前提とする
@@ -38,11 +38,11 @@ impl<T: Clone + PartialOrd> CoordinateCompress<T> for [T] {
 
 // T -> order_id (0-indexed)
 pub trait ToOrderId<T> {
-    fn to_order_id(&self) -> FxHashMap<T, usize>;
+    fn to_order_id(&self) -> HashMap<T, usize>;
 }
 
 impl<T: Clone + Eq + Hash> ToOrderId<T> for [T] {
-    fn to_order_id(&self) -> FxHashMap<T, usize> {
+    fn to_order_id(&self) -> HashMap<T, usize> {
         (0..self.len()).map(|i| (self[i].clone(), i)).collect()
     }
 }

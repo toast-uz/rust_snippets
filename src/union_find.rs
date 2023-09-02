@@ -10,7 +10,7 @@ Refer https://note.nkmk.me/python-union-find/
 Refer https://nyaannyaan.github.io/library/data-structure/rollback-union-find.hpp.html
 */
 
-use rustc_hash::{FxHashSet, FxHashMap};
+use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
@@ -77,11 +77,11 @@ impl UnionFind {
 
     // その他の参照関数
     // 木の根の列挙 O(N)
-    pub fn roots(&self) -> FxHashSet<usize> {
+    pub fn roots(&self) -> HashSet<usize> {
         (0..self.parents.len()).filter(|&x| self.is_root(x)).collect()
     }
     // historyをもとに、木の根の減少差分を求める
-    pub fn roots_diff(&self) -> FxHashSet<usize> {
+    pub fn roots_diff(&self) -> HashSet<usize> {
         self.history.iter().map(|&(x, _)| x)
             .filter(|&x| !self.is_root(x)).collect()
     }
@@ -98,7 +98,7 @@ impl UnionFind {
     pub fn norm2(&self) -> usize { Self::norm2_(&self.sizes()) }
     // historyをもとに、サイズ差分（削除されたサイズ列, 追加されたサイズ列）を求める
     pub fn sizes_diff(&self) -> (Vec<usize>, Vec<usize>) {
-        let hm: FxHashMap<usize, isize> = self.history.iter().rev().cloned().collect();
+        let hm: HashMap<usize, isize> = self.history.iter().rev().cloned().collect();
         let res1 = hm.iter().map(|(_, &size)| -size as usize).collect();
         let res2 = hm.keys()
             .filter(|&&x| self.is_root(x))
@@ -145,15 +145,14 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-    use rustc_hash::FxHashSet;
+    use rustc_hash::FxHashSet as HashSet;
     use super::UnionFind;
 
     #[test]
     fn basic() {
         let n = 10;
         let mut uf = UnionFind::new(n);
-        assert_eq!(uf.roots(), (0..n).collect::<FxHashSet<usize>>());
+        assert_eq!(uf.roots(), (0..n).collect::<HashSet<usize>>());
         assert_eq!(uf.norm2(), 10);
         uf.union(1, 5);
         assert_eq!(uf.norm2(), 12);
