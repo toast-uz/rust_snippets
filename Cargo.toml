@@ -84,8 +84,8 @@ name = "graph"
 path = "src/graph.rs"
 
 [[bin]]
-name = "ahc-template"
-path = "src/ahc-template.rs"
+name = "ahc_template"
+path = "src/ahc_template.rs"
 
 [[bin]]
 name = "args"
