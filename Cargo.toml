@@ -76,8 +76,8 @@ name = "union_find"
 path = "src/union_find.rs"
 
 [[bin]]
-name = "rand"
-path = "src/rand.rs"
+name = "xorshift_rand"
+path = "src/xorshift_rand.rs"
 
 [[bin]]
 name = "graph"
