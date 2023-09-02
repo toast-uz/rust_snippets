@@ -84,6 +84,7 @@ impl<T: Clone> SliceXorshiftRandom<T> for [T] {
         selected.iter().map(|&i| self[i].clone()).collect()
     }
     fn shuffle(&mut self, rng: &mut XorshiftRng) {
+        // Fisher-Yates shuffle
         for i in (1..self.len()).rev() {
             let x = rng.gen_range(0..=i);
             self.swap(i, x);
