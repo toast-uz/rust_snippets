@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 
-use proconio::input;
-//use proconio::input_interactive;  // interactiveな問題用
+use proconio::input_interactive;
 //use itertools::{iproduct, Itertools};
 //use rustc_hash::{FxHashSet, FxHashMap};
 use std::time::Instant;
@@ -29,7 +28,7 @@ struct Env {
 
 impl Env {
     fn new() -> Self {
-        input! { N: usize }
+        input_interactive! { N: usize }
         Self { N }
     }
 }
@@ -114,10 +113,12 @@ impl Agent {
     }
 
     // スコアの差分計算
-    fn compute_score_diff(&self, e: &Env, _neighbor: Neighbor) -> isize {
-        // 差分計算をしない場合
+    fn compute_score_diff(&self, e: &Env, neighbor: Neighbor) -> isize {
+        // 差分計算をしない場合の実装
         let score_old = self.score;
-        let score_new = self.compute_score(e);
+        let mut new_state = self.clone();
+        new_state.transfer_neighbor(e, neighbor);
+        let score_new = new_state.compute_score(e);
         score_new - score_old
     }
 
