@@ -163,3 +163,4 @@ mod xorshift_rand;
 mod kyopro_args;
 mod kyopro_array;
 mod union_find;
+mod kyopro_graph;
