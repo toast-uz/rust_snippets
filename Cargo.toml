@@ -80,8 +80,8 @@ name = "xorshift_rand"
 path = "src/xorshift_rand.rs"
 
 [[bin]]
-name = "graph"
-path = "src/graph.rs"
+name = "kyopro_graph"
+path = "src/kyopro_graph.rs"
 
 [[bin]]
 name = "ahc_template"
