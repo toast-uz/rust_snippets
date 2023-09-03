@@ -287,6 +287,7 @@ fn bfs<T, A>(start: usize, map: &Map<T>, adj: &A) -> Map<(usize, Option<usize>)>
     res
 }
 
+#[allow(dead_code)]
 fn main () {
 }
 
