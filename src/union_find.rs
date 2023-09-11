@@ -10,16 +10,15 @@ Refer https://note.nkmk.me/python-union-find/
 Refer https://nyaannyaan.github.io/library/data-structure/rollback-union-find.hpp.html
 */
 
+#![allow(dead_code)]
 use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 pub struct UnionFind {
     parents: Vec<isize>,
     history: Vec<(usize, isize)>,   // with_capacityで確保すると遅くなる・・？
 }
 
-#[allow(dead_code)]
 impl UnionFind {
     pub fn new(n: usize) -> Self { Self { parents: vec![-1; n], ..Default::default() } }
     pub fn is_root(&self, x: usize) -> bool { self.parents[x] < 0 }
