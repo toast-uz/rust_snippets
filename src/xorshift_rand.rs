@@ -9,19 +9,18 @@ let mut rng = xorshift_rand::xorshift_rng();
 (let mut rng = xorshift_rand::XorshiftRng::from_seed(seed);)
 let random_range = rng.gen_range(0..10);    // [0, 10)のusizeの一様乱数
 let random_range = rng.gen_range(0..=10);   // [0, 10]のusizeの一様乱数
+let random_range = rng.gen_range_multiple(0..10, 3); // 3個
 let random_uniform = rng.gen();             // [0, 1]のf64の一様乱数
 */
-
+#![allow(dead_code)]
 use std::time::Instant;
 use rustc_hash::FxHashSet as HashSet;
 
-#[allow(dead_code)]
 pub fn xorshift_rng() -> XorshiftRng {
     XorshiftRng::from_seed(Instant::now().elapsed().as_nanos() as u64)
 }
 pub struct XorshiftRng { seed: u64, }
 
-#[allow(dead_code)]
 impl XorshiftRng {
     pub fn from_seed(seed: u64) -> Self { Self { seed, } }
     fn _xorshift(&mut self) {
@@ -34,6 +33,19 @@ impl XorshiftRng {
         let (start, end) = Self::unsafe_decode_range_(&range);
         self._xorshift();
         (start as u64 + self.seed % (end - start) as u64) as usize
+    }
+    // 重み付きで乱数を求める
+    pub fn gen_range_weighted<R: std::ops::RangeBounds<usize>>(&mut self, range: R, weights: &[usize]) -> usize {
+        let (start, end) = Self::unsafe_decode_range_(&range);
+        assert_eq!(end - start, weights.len());
+        let sum = weights.iter().sum::<usize>();
+        let x = self.gen_range(0..sum);
+        let mut acc = 0;
+        for i in 0..weights.len() {
+            acc += weights[i];
+            if acc > x { return i; }
+        }
+        unreachable!()
     }
     // [low, high) の範囲から重複なくm個のusizeの乱数を求める
     pub fn gen_range_multiple<R: std::ops::RangeBounds<usize>>(&mut self, range: R, m: usize) -> Vec<usize> {
@@ -66,17 +78,20 @@ impl XorshiftRng {
     }
 }
 
-#[allow(dead_code)]
 pub trait SliceXorshiftRandom<T> {
     fn choose(&self, rng: &mut XorshiftRng) -> T;
     fn choose_multiple(&self, rng: &mut XorshiftRng, m: usize) -> Vec<T>;
+    fn choose_weighted(&self, rng: &mut XorshiftRng, weights: &[usize]) -> T;
     fn shuffle(&mut self, rng: &mut XorshiftRng);
 }
 
-#[allow(dead_code)]
 impl<T: Clone> SliceXorshiftRandom<T> for [T] {
     fn choose(&self, rng: &mut XorshiftRng) -> T {
         let x = rng.gen_range(0..self.len());
+        self[x].clone()
+    }
+    fn choose_weighted(&self, rng: &mut XorshiftRng, weights: &[usize]) -> T {
+        let x = rng.gen_range_weighted(0..self.len(), weights);
         self[x].clone()
     }
     fn choose_multiple(&self, rng: &mut XorshiftRng, m: usize) -> Vec<T> {
@@ -115,7 +130,6 @@ random_excursion_variant_test            0.07994960739002104 PASS
 use std::fs::File;
 use std::io::Write;
 
-#[allow(dead_code)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rng = XorshiftRng::from_seed(998244353);
     let mut file = File::create("./tools/sp800_22_tests/xorshift.bin")?;
@@ -127,37 +141,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
-// cargo test benchmark1 --bin rand --release   1.0 sec（1億回）世間一般のrandクレート
-// cargo test benchmark2 --bin rand --release   2.3 sec（10億回）今回作成のxorshift
+// cargo test benchmark1 --bin xorshift_rand --release   1.0 sec（1億回）世間一般のrandクレート
+// cargo test benchmark2 --bin xorshift_rand --release   2.3 sec（10億回）今回作成のxorshift
 
 
 #[cfg(test)]
 mod tests {
-    use rand::prelude::*;
-    use itertools::Itertools;
     use super::*;
 
     #[test]
     fn basic() {
-        let mut rng = xorshift_rng();
-        for _ in 0..1000 {
-            let random_range1 = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数
-            assert!(5 <= random_range1 && random_range1 < 10);
-            let random_range2 = rng.gen_range(5..=10);   // [0, 10]のusizeの一様乱数
-            assert!(5 <= random_range2 && random_range2 <= 10);
-            let random_range3 = rng.gen_range_multiple(0..10, 3); // 3個
-            assert!(random_range3.iter().max().cloned().unwrap() < 10);
-            assert_eq!(random_range3.len(), 3);
-            assert!(random_range3.iter().all_unique());
-            let random_range4 = rng.gen_range_multiple(0..10, 6); // 6個
-            assert!(random_range4.iter().max().cloned().unwrap() < 10);
-            assert_eq!(random_range4.len(), 6);
-            assert!(random_range4.iter().all_unique());
-            let random_range5 = rng.gen_range_multiple(0..10, 10); // 6個
-            assert_eq!(random_range5, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-            let random_uniform = rng.gen();               // [0, 1]のf64の一様乱数
-            assert!(0.0 <= random_uniform && random_uniform <= 1.0);
-        }
+        let mut rng = XorshiftRng::from_seed(998244353);
+        let x = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数
+        assert_eq!(x, 5);
+        let x = rng.gen_range(5..=10);   // [0, 10]のusizeの一様乱数
+        assert_eq!(x, 9);
+        let x = rng.gen_range_multiple(0..10, 3); // 3個
+        assert_eq!(x, vec![0, 4, 7]);
+        let x = rng.gen_range_multiple(0..10, 6); // 6個
+        assert_eq!(x, vec![2, 3, 4, 5, 7, 9]);
+        let x = rng.gen_range_multiple(0..10, 10); // 6個
+        assert_eq!(x, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        let x = rng.gen();               // [0, 1]のf64の一様乱数
+        assert!(0.70 < x && x < 0.71);
+        let x = rng.gen();
+        assert!(0.17 < x && x < 0.18);
+        let x = rng.gen_range_weighted(0..10,
+            &[0, 0, 0, 10, 1, 2, 1, 0, 1, 0]);
+        assert_eq!(x, 5);
         basic_sub(&mut rng);
     }
 
@@ -168,7 +179,23 @@ mod tests {
     }
 
     #[test]
+    fn test_slice() {
+        let mut rng = XorshiftRng::from_seed(998244353);
+        let a = vec![1, 2, 3, 4, 5];
+        let x = a.choose(&mut rng);
+        assert_eq!(x, 1);
+        let x = a.choose_multiple(&mut rng, 3);
+        assert_eq!(x, vec![2, 4, 5]);
+        let x = a.choose_weighted(&mut rng, &[0, 0, 0, 10, 1]);
+        assert_eq!(x, 4);
+        let mut a = vec![1, 2, 3, 4, 5];
+        a.shuffle(&mut rng);
+        assert_eq!(a, vec![4, 3, 2, 1, 5]);
+    }
+
+    #[test]
     fn benchmark1_public_rand() {
+        use rand::prelude::*;
         let mut rng = SmallRng::from_entropy();
         let mut total = 0;
         for _ in 0..100_000_000 {
