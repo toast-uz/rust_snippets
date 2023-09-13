@@ -1,12 +1,12 @@
+#![allow(dead_code)]
+
 use regex::Regex;
 use itertools::Itertools;
 
-#[allow(dead_code)]
 pub struct Args {
     args_str: String,
 }
 
-#[allow(dead_code)]
 impl Args {
     pub fn new() -> Self {
         let args: Vec<String> = std::env::args().collect();
@@ -22,7 +22,6 @@ impl Args {
     }
 }
 
-#[allow(dead_code)]
 fn main() {
     let args = Args::new();
     let x: usize = args.get::<usize>("x").unwrap();
