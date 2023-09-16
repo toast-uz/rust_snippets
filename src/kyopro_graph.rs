@@ -386,7 +386,7 @@ impl<'a, T: Cell + Clone + 'static> LowLink<'a, T> {
         lowlink.aps
     }
 
-    pub fn dfs(&mut self, c: Coordinate, mut k: usize, parent: Option<Coordinate>,
+    fn dfs(&mut self, c: Coordinate, mut k: usize, parent: Option<Coordinate>,
             adj: &Adjacency) -> usize {
         self.used.set(c, true);
         self.order[c] = k;
