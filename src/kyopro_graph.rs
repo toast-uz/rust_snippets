@@ -261,13 +261,33 @@ impl std::fmt::Display for Coordinate {
 // Adjacency 隣接関係
 
 pub enum Adjacency {
-    D2dir4 { dir: [Coordinate; 4] },
+    D2dir4 { dir: [Coordinate; 4], name: [&'static str; 4] },
+    D2dir8 { dir: [Coordinate; 8], name: [&'static str; 8] },
+    D3dir6 { dir: [Coordinate; 6], name: [&'static str; 6] },
     UnDirected { adj: HashMap<usize, HashSet<(usize, isize)>> },
+    Directed { adj: HashMap<usize, HashSet<(usize, isize)>> },
 }
 
 impl Adjacency {
     pub fn new_d2dir4() -> Self {
-        Self::D2dir4 { dir: [coord!(0, 1), coord!(0, !0), coord!(1, 0), coord!(!0, 0)] }
+        Self::D2dir4 {
+            dir: [coord!(!0, 0), coord!(0, 1), coord!(1, 0), coord!(0, !0)],
+            name: ["U", "R", "D", "L"],
+        }
+    }
+    pub fn new_d2dir8() -> Self {
+        Self::D2dir8 {
+            dir: [coord!(!0, 0), coord!(!0, 1), coord!(0, 1), coord!(1, 1),
+                coord!(1, 0), coord!(1, !0), coord!(0, !0), coord!(!0, !0)],
+            name: ["U", "UR", "R", "DR", "D", "DL", "L", "UL"],
+        }
+    }
+    pub fn new_d3dir6() -> Self {
+        Self::D3dir6 {
+            dir: [coord!(1, 0, 0), coord!(!0, 0, 0), coord!(0, 1, 0),
+                coord!(0, !0, 0), coord!(0, 0, 1), coord!(0, 0, !0)],
+            name: ["F", "B", "R", "L", "U", "D"],
+        }
     }
     pub fn new_undirected(edges: &[(usize, usize)]) -> Self {
         let mut adj: HashMap<usize, HashSet<(usize, isize)>> = HashMap::default();
@@ -285,9 +305,23 @@ impl Adjacency {
         }
         Self::UnDirected { adj }
     }
+    pub fn new_directed(edges: &[(usize, usize)]) -> Self {
+        let mut adj: HashMap<usize, HashSet<(usize, isize)>> = HashMap::default();
+        for &(u, v) in edges {
+            adj.entry(u).or_default().insert((v, 1));
+        }
+        Self::Directed { adj }
+    }
+    pub fn new_directed_with_cost(edges: &[(usize, usize, isize)]) -> Self {
+        let mut adj: HashMap<usize, HashSet<(usize, isize)>> = HashMap::default();
+        for &(u, v, c) in edges {
+            adj.entry(u).or_default().insert((v, c));
+        }
+        Self::Directed { adj }
+    }
     pub fn get(&self, c: Coordinate) -> Vec<Coordinate> {
         match (self, c) {
-            (Self::D2dir4 { dir }, _) =>
+            (Self::D2dir4 { dir, .. }, _) =>
                 dir.iter().map(|&d| c + d).collect(),
             (Self::UnDirected { adj }, Coordinate::D1(u)) => {
                 let Some(vs) = adj.get(&u) else { return Vec::new() };
@@ -298,7 +332,7 @@ impl Adjacency {
     }
     pub fn get_with_cost(&self, c: Coordinate) -> Vec<(Coordinate, isize)> {
         match (self, c) {
-            (Self::D2dir4 { dir }, _) =>
+            (Self::D2dir4 { dir, .. }, _) =>
                 dir.iter().map(|&d| (c + d, 1)).collect(),
             (Self::UnDirected { adj }, Coordinate::D1(u)) => {
                 let Some(vs) = adj.get(&u) else { return Vec::new() };
