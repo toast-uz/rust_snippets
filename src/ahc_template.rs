@@ -1,11 +1,13 @@
-#![allow(non_snake_case)]
-
 use proconio::input_interactive;
 //use itertools::{iproduct, Itertools};
 //use rustc_hash::{FxHashSet, FxHashMap};
 use std::time::Instant;
 use xorshift_rand::*;
 use kyopro_args::*;
+
+const START_TEMP: f64 = 100.0;
+const END_TEMP: f64 = 10.0;
+const PATIENCE: usize = 100;
 
 const LIMIT: f64 = 0.5;
 //const LIMIT: f64 = 1.9;     // 提出時には制限時間に合わせる
@@ -20,32 +22,33 @@ fn main() {
     let mut a = Agent::new(&e);
     a.optimize(&e, &mut rng, &timer, LIMIT);
     println!("{}", a.result());
-    eprintln!("N:{} counter:{} score:{}", e.N, a.counter, a.score);
+    eprintln!("N:{} counter:{} score:{}", e.n, a.counter, a.score);
 }
 
 #[derive(Debug, Clone, Default)]
 struct Env {
-    N: usize,
-    START_TEMP: f64,
-    END_TEMP: f64,
-    PATIENCE: usize,
+    n: usize,
+    start_temp: f64,
+    duration_temp: f64,
+    patience: usize,
 }
 
 impl Env {
     fn new() -> Self {
-        input_interactive! { N: usize }
+        input_interactive! { n: usize }
         let mut e = Self::default();
-        e.init(N); e
+        e.init(n); e
     }
 
-    fn init(&mut self, N: usize) {
+    fn init(&mut self, n: usize) {
         // 問題入力の設定
-        self.N = N;
+        self.n = n;
         // ハイパーパラメータの設定
         let args = Args::new();
-        self.START_TEMP= args.get("START_TEMP").unwrap_or(100.0);
-        self.END_TEMP= args.get("END_TEMP").unwrap_or(10.0);
-        self.PATIENCE= args.get("PATIENCE").unwrap_or(100);
+        self.start_temp= args.get("start_temp").unwrap_or(START_TEMP);
+        let end_temp= args.get("end_temp").unwrap_or(END_TEMP);
+        self.duration_temp = end_temp - self.start_temp;
+        self.patience= args.get("patience").unwrap_or(PATIENCE);
     }
 }
 
@@ -73,7 +76,7 @@ impl Agent {
         while time < limit {
             self.counter += 1;
             // PATIENCE回、ベスト更新されなかったら，現在のカウンターをベストにコピーして、ベストから再開する
-            if self.counter > best.counter + e.PATIENCE {
+            if self.counter > best.counter + e.patience {
                 best.counter = self.counter;
                 *self = best.clone();
                 dbg!("counter:{} score:{} restart from the best", self.counter, self.score);
@@ -83,7 +86,7 @@ impl Agent {
             let score_diff = self.compute_score_diff(e, neighbor);
             // 現在の温度を計算して遷移確率を求める
             time = timer.elapsed().as_secs_f64();
-            temp = e.START_TEMP + (e.END_TEMP - e.START_TEMP) * (time - start_time) / (limit - start_time);
+            temp = e.start_temp + e.duration_temp * (time - start_time) / (limit - start_time);
             let prob = (score_diff as f64 / temp).exp();
             if prob > rng.gen() || neighbor.forced() { // 確率prob or 強制近傍か で遷移する
                 self.transfer_neighbor(e, neighbor);
