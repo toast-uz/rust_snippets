@@ -5,6 +5,7 @@ use proconio::input_interactive;
 //use rustc_hash::{FxHashSet, FxHashMap};
 use std::time::Instant;
 use xorshift_rand::*;
+use kyopro_args::*;
 
 const LIMIT: f64 = 0.5;
 //const LIMIT: f64 = 1.9;     // 提出時には制限時間に合わせる
@@ -25,12 +26,26 @@ fn main() {
 #[derive(Debug, Clone, Default)]
 struct Env {
     N: usize,
+    START_TEMP: f64,
+    END_TEMP: f64,
+    PATIENCE: usize,
 }
 
 impl Env {
     fn new() -> Self {
         input_interactive! { N: usize }
-        Self { N }
+        let mut e = Self::default();
+        e.init(N); e
+    }
+
+    fn init(&mut self, N: usize) {
+        // 問題入力の設定
+        self.N = N;
+        // ハイパーパラメータの設定
+        let args = Args::new();
+        self.START_TEMP= args.get("START_TEMP").unwrap_or(100.0);
+        self.END_TEMP= args.get("END_TEMP").unwrap_or(10.0);
+        self.PATIENCE= args.get("PATIENCE").unwrap_or(100);
     }
 }
 
@@ -41,10 +56,6 @@ struct Agent {
 }
 
 impl Agent {
-    const START_TEMP: f64 = 100.0;
-    const END_TEMP: f64 = 10.0;
-    const PATIENCE: usize = 100;
-
     fn new(e: &Env) -> Self {
         let mut a = Self::default();
         a.init(e); a
@@ -62,7 +73,7 @@ impl Agent {
         while time < limit {
             self.counter += 1;
             // PATIENCE回、ベスト更新されなかったら，現在のカウンターをベストにコピーして、ベストから再開する
-            if self.counter > best.counter + Self::PATIENCE {
+            if self.counter > best.counter + e.PATIENCE {
                 best.counter = self.counter;
                 *self = best.clone();
                 dbg!("counter:{} score:{} restart from the best", self.counter, self.score);
@@ -72,7 +83,7 @@ impl Agent {
             let score_diff = self.compute_score_diff(e, neighbor);
             // 現在の温度を計算して遷移確率を求める
             time = timer.elapsed().as_secs_f64();
-            temp = Self::START_TEMP + (Self::END_TEMP - Self::START_TEMP) * (time - start_time) / (limit - start_time);
+            temp = e.START_TEMP + (e.END_TEMP - e.START_TEMP) * (time - start_time) / (limit - start_time);
             let prob = (score_diff as f64 / temp).exp();
             if prob > rng.gen() || neighbor.forced() { // 確率prob or 強制近傍か で遷移する
                 self.transfer_neighbor(e, neighbor);
@@ -95,12 +106,8 @@ impl Agent {
         if p < 0.5 {
             Neighbor::None
         } else {
-            let (mut a, mut b) = (0, 0);
-            while a == b {
-                a = rng.gen_range(0..100);
-                b = rng.gen_range(0..100);
-            }
-            Neighbor::Swap(a, b)
+            let v = rng.gen_range_multiple(0..100, 2);
+            Neighbor::Swap(v[0], v[1])
         }
     }
 
@@ -153,6 +160,7 @@ impl Neighbor {
     }
     // 強制で遷移する近傍かどうか
     // kick系の非可逆なNeighborはtrueとする
+    #[inline]
     fn forced(&self) -> bool {
         false
     }
