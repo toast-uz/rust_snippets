@@ -121,7 +121,11 @@ impl Agent {
     }
 
     // スコアの差分計算
-    fn compute_score_diff(&self, e: &Env, neighbor: Neighbor) -> isize {
+    // 以下のいずれかで実装する
+    // 1) cloneしたnew_stateを遷移させて、フル計算する
+    // 2) selfを遷移させて、フル計算し、その後、selfを逆遷移させる
+    // 3) 差分計算をする
+    fn compute_score_diff(&mut self, e: &Env, neighbor: Neighbor) -> isize {
         // 差分計算をしない場合の実装
         let score_old = self.score;
         let mut new_state = self.clone();
@@ -149,7 +153,7 @@ enum Neighbor {
 }
 
 impl Neighbor {
-    // 近傍を元に戻す
+    // 近傍を逆遷移させるための近傍を返す
     // kick系の非可逆なNeighborはNone（戻さない）とする
     #[allow(dead_code)]
     fn reversed(&self) -> Self {
