@@ -149,8 +149,7 @@ impl<T: Clone + PartialOrd> InversionNumber<T> for [T] {
     }
 }
 
-fn main() {
-}
+fn main() {}
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
