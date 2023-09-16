@@ -363,6 +363,8 @@ pub fn bfs<T: Cell + Clone>(start: Coordinate, map: &(dyn MapOperation<T> + 'sta
     res
 }
 
+
+// Beginning of the other owner's code.
 // lowlink by terry_u16
 pub struct LowLink<'a, T: 'static> {
     map: &'a (dyn MapOperation<T> + 'static),
@@ -371,8 +373,6 @@ pub struct LowLink<'a, T: 'static> {
     low: Map<usize>,
     aps: HashSet<Coordinate>,
 }
-
-// 間接点を求める
 impl<'a, T: Cell + Clone + 'static> LowLink<'a, T> {
     pub fn calc_aps(start: Coordinate, map: &'a (dyn MapOperation<T> + 'static),
             adj: &Adjacency) -> HashSet<Coordinate> {
@@ -414,6 +414,7 @@ impl<'a, T: Cell + Clone + 'static> LowLink<'a, T> {
         k
     }
 }
+// End of the other owner's code.
 
 
 fn main () {}

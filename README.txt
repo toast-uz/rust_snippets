@@ -6,5 +6,5 @@ Heuristic Contests 向けのRust snippet集
 - Rust 1.70.0と、AtCoder 2023 言語updateの対象クレートが前提
 
 Copyright (c) 2023 toast-uz
-Released under the MIT license
+Released under the MIT license except for the other owners' snippets
 https://opensource.org/licenses/mit-license.php
