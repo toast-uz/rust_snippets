@@ -8,7 +8,6 @@ use bitvec::prelude::*;
 
 const INF: usize = 1e18 as usize;
 
-
 // Map グラフの頂点集合
 
 #[derive(Clone, Debug)]
@@ -53,9 +52,9 @@ pub struct BitMap {
 impl BitMap {
     pub fn new(coordinate_limit: Coordinate) -> Self {
         let n = coordinate_limit.norm();
-        let mut data = BitVec::with_capacity(n);
-        unsafe { data.set_len(n); }
-        Self { coordinate_limit, data }
+        let mut res = Self { coordinate_limit, data: BitVec::with_capacity(n) };
+        unsafe { res.data.set_len(n); }
+        res
     }
 }
 
@@ -71,6 +70,16 @@ pub trait MapOperation<T> {
     fn coordinate_limit(&self) -> Coordinate;
     fn get(&self, c: Coordinate) -> Option<&T>;
     fn get_mut(&mut self, c: Coordinate) -> Option<&mut T>;
+    fn is_empty(&self, c: Coordinate) -> bool where T: Cell {
+        self.get(c).is_some_and(|t| t.is_empty())
+    }
+    fn is_obstacle(&self, c: Coordinate) -> bool where T: Cell {
+        self.get(c).is_some_and(|t| t.is_obstacle())
+    }
+    fn contains_key(&self, c: Coordinate) -> bool {
+        c.partial_cmp(&self.coordinate_limit())
+            .is_some_and(|cmp| cmp == Ordering::Less)
+    }
     fn set(&mut self, c: Coordinate, x: T);
     fn p2c(&self, p: usize) -> Coordinate { self.coordinate_limit().p2c(p) }
     fn c2p(&self, c: Coordinate) -> usize { self.coordinate_limit().c2p(c) }
@@ -149,6 +158,13 @@ impl Cell for DefaultCell {
 
 // Coordinate 座標
 
+#[macro_export]
+macro_rules! coord {
+    ( $x: expr ) => { Coordinate::D1($x) };
+    ( $i: expr, $j: expr ) => { Coordinate::D2 { i: $i, j: $j } };
+    ( $x: expr, $y: expr, $z: expr ) => { Coordinate::D3 { x: $x, y: $y, z: $z } };
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Coordinate {
     D1(usize),
@@ -166,26 +182,27 @@ impl Coordinate {
     }
     pub fn invert(&self) -> Self {
         match *self {
-            Self::D1(x) => Self::D1(0usize.wrapping_sub(x)),
-            Self::D2 { i, j } => Self::D2 {
-                i: 0usize.wrapping_sub(i), j: 0usize.wrapping_sub(j)
-            },
-            Self::D3 { x, y, z } => Self::D3 {
-                x: 0usize.wrapping_sub(x), y: 0usize.wrapping_sub(y), z: 0usize.wrapping_sub(z)
-            },
+            Self::D1(x) => coord!(0usize.wrapping_sub(x)),
+            Self::D2 { i, j } => coord!(
+                0usize.wrapping_sub(i), 0usize.wrapping_sub(j)
+            ),
+            Self::D3 { x, y, z } => coord!(
+                0usize.wrapping_sub(x), 0usize.wrapping_sub(y), 0usize.wrapping_sub(z)
+            ),
         }
     }
     pub fn p2c(&self, p: usize) -> Self {
         match *self {
-            Self::D1(_) => Self::D1(p),
-            Self::D2 { i: _, j } => Self::D2 { i: p / j, j: p % j },
-            Self::D3 { x, y, z: _ } => Self::D3 { x: p % x , y: (p / x) % y, z: p % (x * y) },
+            Self::D1(_) => coord!(p),
+            Self::D2 { i: _, j: width } => coord!(p / width, p % width),
+            Self::D3 { x: width, y: height, z: _ }
+                => coord!(p % width , (p / width) % height, p % (width * height)),
         }
     }
     pub fn c2p(&self, c: Self) -> usize {
         match (*self, c) {
             (Self::D1(_), Self::D1(x)) => x,
-            (Self::D2 { i: _, j: width }, Self::D2 { i, j }) => i + j * width,
+            (Self::D2 { i: _, j: width }, Self::D2 { i, j }) => i * width + j,
             (Self::D3 { x: width, y: height, z: _ }, Self::D3 {x, y, z}) => {
                 x + (y + z * height) * width
             },
@@ -220,11 +237,11 @@ impl std::ops::Add for Coordinate {
     type Output = Self;
     fn add(self, other: Self) -> Self {
         match (self, other) {
-            (Self::D1(x0), Self::D1(x1)) => Self::D1(x0.wrapping_add(x1)),
+            (Self::D1(x0), Self::D1(x1)) => coord!(x0.wrapping_add(x1)),
             (Self::D2 { i: i0, j: j0 }, Self::D2 { i: i1, j: j1 })
-                => Self::D2 { i: i0.wrapping_add(i1), j: j0.wrapping_add(j1) },
+                => coord!(i0.wrapping_add(i1), j0.wrapping_add(j1)),
             (Self::D3 { x: x0, y: y0, z: z0 }, Self::D3 { x: x1, y: y1, z: z1 })
-                => Self::D3 { x: x0.wrapping_add(x1), y: y0.wrapping_add(y1), z: z0.wrapping_add(z1) },
+                => coord!(x0.wrapping_add(x1), y0.wrapping_add(y1), z0.wrapping_add(z1)),
             _ => panic!("cannot add different dimension coordinates"),
         }
     }
@@ -234,8 +251,8 @@ impl std::fmt::Display for Coordinate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             Self::D1(x) => write!(f, "{}", x),
-            Self::D2 { i, j } => write!(f, "{}, {}", i, j),
-            Self::D3 { x, y, z } => write!(f, "{}, {}, {}", x, y, z),
+            Self::D2 { i, j } => write!(f, "{} {}", i, j),
+            Self::D3 { x, y, z } => write!(f, "{} {} {}", x, y, z),
         }
     }
 }
@@ -250,8 +267,23 @@ pub enum Adjacency {
 
 impl Adjacency {
     pub fn new_d2dir4() -> Self {
-        Self::D2dir4 { dir: [Coordinate::D2 { i: 0, j: 1 }, Coordinate::D2 { i: 0, j: !0 },
-                              Coordinate::D2 { i: 1, j: 0 }, Coordinate::D2 { i: !0, j: 0 }] }
+        Self::D2dir4 { dir: [coord!(0, 1), coord!(0, !0), coord!(1, 0), coord!(!0, 0)] }
+    }
+    pub fn new_undirected(edges: &[(usize, usize)]) -> Self {
+        let mut adj: HashMap<usize, HashSet<(usize, isize)>> = HashMap::default();
+        for &(u, v) in edges {
+            adj.entry(u).or_default().insert((v, 1));
+            adj.entry(v).or_default().insert((u, 1));
+        }
+        Self::UnDirected { adj }
+    }
+    pub fn new_undirected_with_cost(edges: &[(usize, usize, isize)]) -> Self {
+        let mut adj: HashMap<usize, HashSet<(usize, isize)>> = HashMap::default();
+        for &(u, v, c) in edges {
+            adj.entry(u).or_default().insert((v, c));
+            adj.entry(v).or_default().insert((u, c));
+        }
+        Self::UnDirected { adj }
     }
     pub fn get(&self, c: Coordinate) -> Vec<Coordinate> {
         match (self, c) {
@@ -259,7 +291,7 @@ impl Adjacency {
                 dir.iter().map(|&d| c + d).collect(),
             (Self::UnDirected { adj }, Coordinate::D1(u)) => {
                 let Some(vs) = adj.get(&u) else { return Vec::new() };
-                vs.iter().map(|&(v, _)| Coordinate::D1(v)).collect()
+                vs.iter().map(|&(v, _)| coord!(v)).collect()
             },
             _ => panic!("cannot get adjacent coordinates")
         }
@@ -270,7 +302,7 @@ impl Adjacency {
                 dir.iter().map(|&d| (c + d, 1)).collect(),
             (Self::UnDirected { adj }, Coordinate::D1(u)) => {
                 let Some(vs) = adj.get(&u) else { return Vec::new() };
-                vs.iter().map(|&(v, c)| (Coordinate::D1(v), c)).collect()
+                vs.iter().map(|&(v, c)| (coord!(v), c)).collect()
             },
             _ => panic!("cannot get adjacent coordinates")
         }
@@ -281,7 +313,7 @@ impl Adjacency {
 // グラフ分析に関するユーティリティ関数群
 
 // ダイクストラ法での(距離, dp復元用の1つ前の頂点)を求める
-pub fn dijkstra<T: Cell + Clone>(start: Coordinate, map: &'static dyn MapOperation<T>, adj: &Adjacency)
+pub fn dijkstra<T: Cell + Clone>(start: Coordinate, map: &(dyn MapOperation<T> + 'static), adj: &Adjacency)
         -> Map<(usize, Option<Coordinate>)> {
     let mut res =
         Map::new_with_fill(map.coordinate_limit(), &(INF, None));
@@ -295,9 +327,8 @@ pub fn dijkstra<T: Cell + Clone>(start: Coordinate, map: &'static dyn MapOperati
         let pos = hm[&pos_id];
         if d != res[pos].0 { continue; }
         for &(next, cost) in &adj.get_with_cost(pos) {
-            if !next.partial_cmp(&map.coordinate_limit())
-                .is_some_and(|cmp| cmp == Ordering::Less) { continue; }
-            if map[next].is_obstacle() { continue; }
+            if !map.contains_key(next) { continue; }
+            if map.is_obstacle(next) { continue; }
             let next_d = d + cost as usize;
             if next_d < res[next].0 {
                 hs_id += 1;
@@ -311,7 +342,7 @@ pub fn dijkstra<T: Cell + Clone>(start: Coordinate, map: &'static dyn MapOperati
 }
 
 // bfsでの(距離, dp復元用の1つ前の頂点)を求める
-pub fn bfs<T: Cell + Clone>(start: Coordinate, map: &'static dyn MapOperation<T>, adj: &Adjacency)
+pub fn bfs<T: Cell + Clone>(start: Coordinate, map: &(dyn MapOperation<T> + 'static), adj: &Adjacency)
         -> Map<(usize, Option<Coordinate>)> {
     let mut res =
         Map::new_with_fill(map.coordinate_limit(), &(INF, None));
@@ -324,9 +355,8 @@ pub fn bfs<T: Cell + Clone>(start: Coordinate, map: &'static dyn MapOperation<T>
         seen.set(pos, true);
         res[pos] = (dist, pre);
         for &next in &adj.get(pos) {
-            if !next.partial_cmp(&map.coordinate_limit())
-                .is_some_and(|cmp| cmp == Ordering::Less) { continue; }
-            if map[next].is_obstacle() { continue; }
+            if !map.contains_key(next) { continue; }
+            if map.is_obstacle(next) { continue; }
             todo.push_front((dist + 1, next, Some(pos)));
         }
     }
@@ -334,7 +364,8 @@ pub fn bfs<T: Cell + Clone>(start: Coordinate, map: &'static dyn MapOperation<T>
 }
 
 // lowlink by terry_u16
-pub struct LowLink {
+pub struct LowLink<'a, T: 'static> {
+    map: &'a (dyn MapOperation<T> + 'static),
     used: BitMap,
     order: Map<usize>,
     low: Map<usize>,
@@ -342,21 +373,21 @@ pub struct LowLink {
 }
 
 // 間接点を求める
-impl LowLink {
-    pub fn calc_aps<T: Cell + Clone>(start: Coordinate, map: &'static dyn MapOperation<T>,
+impl<'a, T: Cell + Clone + 'static> LowLink<'a, T> {
+    pub fn calc_aps(start: Coordinate, map: &'a (dyn MapOperation<T> + 'static),
             adj: &Adjacency) -> HashSet<Coordinate> {
         let used = BitMap::new(map.coordinate_limit());
         let order = Map::new_with_fill(map.coordinate_limit(), &0);
         let low = Map::new_with_fill(map.coordinate_limit(), &0);
         let aps = HashSet::default();
-        let mut lowlink = Self { used, order, low, aps, };
+        let mut lowlink = Self { map, used, order, low, aps, };
         let k = 0;
-        lowlink.dfs(start, k, None, map, adj);
+        lowlink.dfs(start, k, None, adj);
         lowlink.aps
     }
 
-    pub fn dfs<T: Cell + Clone>(&mut self, c: Coordinate, mut k: usize, parent: Option<Coordinate>,
-            map: &'static dyn MapOperation<T>, adj: &Adjacency) -> usize {
+    pub fn dfs(&mut self, c: Coordinate, mut k: usize, parent: Option<Coordinate>,
+            adj: &Adjacency) -> usize {
         self.used.set(c, true);
         self.order[c] = k;
         k += 1;
@@ -366,13 +397,14 @@ impl LowLink {
 
         for &next in &adj.get(c) {
             // 空白でないなら、スキップする
-            if !map[next].is_empty() { continue; }
+            if !self.map.contains_key(next) { continue; }
+            if self.map.is_obstacle(next) { continue; }
 
             if !self.used[next] {
                 count += 1;
-                k = self.dfs(next, k, Some(c), map, adj);
+                k = self.dfs(next, k, Some(c), adj);
                 self.low[c] = self.low[c].min(self.low[next]);
-                if self.order[c] <= self.low[next] { is_aps = true; }
+                if parent.is_some() && self.order[c] <= self.low[next] { is_aps = true; }
             } else if parent.is_none() || next != parent.unwrap() {
                 self.low[c] = self.low[c].min(self.order[next]);
             }
@@ -392,14 +424,39 @@ mod test {
 
     #[test]
     fn test_basic_matrix2d() {
-        let coordinate_limit = Coordinate::D2 { i: 3, j: 2 };
-        let map = Map::new(coordinate_limit);
-        map[Coordinate::D2 { i: 1, j: 0 }] = DefaultCell::Obstacle;
-        let start = Coordinate::D2 { i: 0, j: 0 };
+        let coordinate_limit = coord!(2, 3);
+        let mut map = Map::new_with_fill(coordinate_limit, &DefaultCell::Empty);
+        map[coord!(0, 1)] = DefaultCell::Obstacle;
+        let start = coord!(0, 0);
         let adj = Adjacency::new_d2dir4();
         let res = bfs(start, &map, &adj);
-        eprint!("{:?}\n", map.data);
-        eprint!("{:?}\n", res.data);
-        assert!(false);
+        assert_eq!(res.data, vec![(0, None), (INF, None), (4, Some(coord!(1, 2))),
+            (1, Some(coord!(0, 0))), (2, Some(coord!(1, 0))), (3, Some(coord!(1, 1)))]);
+    }
+
+    #[test]
+    fn test_basic_grid() {
+        let map: Map<bool> = Map::new(coord!(7));
+        let start = coord!(0);
+        let edges =
+            vec![(0, 1, 1), (0, 2, 2), (1, 4, 5), (2, 4, 5), (2, 6, 1), (4, 6, 2), (4, 5, 1)];
+        let adj = Adjacency::new_undirected_with_cost(&edges);
+        let res = bfs(start, &map, &adj);
+        assert_eq!(res.data, vec![(0, None), (1, Some(coord!(0))), (1, Some(coord!(0))),
+            (INF, None), (2, Some(coord!(2))), (3, Some(coord!(4))), (2, Some(coord!(2)))]);
+        let res = dijkstra(start, &map, &adj);
+        assert_eq!(res.data, vec![(0, None), (1, Some(coord!(0))), (2, Some(coord!(0))),
+            (INF, None), (5, Some(coord!(6))), (6, Some(coord!(4))), (3, Some(coord!(2)))]);
+    }
+
+    #[test]
+    fn test_lowlink() {
+        let map: Map<bool> = Map::new(coord!(7));
+        let start = coord!(0);
+        let edges =
+            vec![(0, 1), (0, 2), (1, 4), (2, 4), (2, 6), (4, 6), (4, 5)];
+        let adj = Adjacency::new_undirected(&edges);
+        let res = LowLink::calc_aps(start, &map, &adj);
+        assert_eq!(res, HashSet::from_iter(vec![coord!(4)]));
     }
 }
