@@ -1,10 +1,13 @@
+// todo! Zobrist Hash
+// todo! dfs
+
 #![allow(dead_code)]
 
-use std::collections::{BinaryHeap, VecDeque};
-use std::hash::Hash;
-use std::cmp::{Reverse, Ordering};
+use std::collections::VecDeque;
 use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
 use bitvec::prelude::*;
+
+use crate::heapmap::*;
 
 const INF: usize = 1e18 as usize;
 
@@ -78,7 +81,7 @@ pub trait MapOperation<T> {
     }
     fn contains_key(&self, c: Coordinate) -> bool {
         c.partial_cmp(&self.coordinate_limit())
-            .is_some_and(|cmp| cmp == Ordering::Less)
+            .is_some_and(|cmp| cmp == std::cmp::Ordering::Less)
     }
     fn set(&mut self, c: Coordinate, x: T);
     fn p2c(&self, p: usize) -> Coordinate { self.coordinate_limit().p2c(p) }
@@ -144,7 +147,7 @@ impl Cell for bool {
     fn is_obstacle(&self) -> bool { *self }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, std::hash::Hash, Debug)]
 pub enum DefaultCell {
     Empty,
     Obstacle,
@@ -165,7 +168,7 @@ macro_rules! coord {
     ( $x: expr, $y: expr, $z: expr ) => { Coordinate::D3 { x: $x, y: $y, z: $z } };
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, std::hash::Hash, Debug)]
 pub enum Coordinate {
     D1(usize),
     D2 { i: usize, j: usize },
@@ -213,7 +216,7 @@ impl Coordinate {
 
 // 全ての軸の順序が一致する場合に限り、比較可能とする
 impl std::cmp::PartialOrd for Coordinate {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (*self, *other) {
             (Self::D1(x0), Self::D1(x1)) => Some(x0.cmp(&x1)),
             (Self::D2 { i: i0, j: j0 }, Self::D2 { i: i1, j: j1 }) => {
@@ -351,23 +354,17 @@ pub fn dijkstra<T: Cell + Clone>(start: Coordinate, map: &(dyn MapOperation<T> +
         -> Map<(usize, Option<Coordinate>)> {
     let mut res =
         Map::new_with_fill(map.coordinate_limit(), &(INF, None));
-    let mut hm = HashMap::default();
     res[start] = (0, None);
-    hm.insert(0, start);
-    let mut hs_id = 0;
-    let mut heapq = BinaryHeap::new();
-    heapq.push((Reverse(0), 0));
-    while let Some((Reverse(d), pos_id)) = heapq.pop() {
-        let pos = hm[&pos_id];
+    let mut heapq = HeapMap::new(true);
+    heapq.push((0, start));
+    while let Some((d, pos)) = heapq.pop() {
         if d != res[pos].0 { continue; }
         for &(next, cost) in &adj.get_with_cost(pos) {
             if !map.contains_key(next) { continue; }
             if map.is_obstacle(next) { continue; }
             let next_d = d + cost as usize;
             if next_d < res[next].0 {
-                hs_id += 1;
-                hm.insert(hs_id, next);
-                heapq.push((Reverse(next_d), hs_id));
+                heapq.push((next_d, next));
                 res[next] = (next_d, Some(pos));
             }
         }
@@ -450,8 +447,6 @@ impl<'a, T: Cell + Clone + 'static> LowLink<'a, T> {
 }
 // End of the other owner's code.
 
-
-fn main () {}
 
 #[cfg(test)]
 mod test {
