@@ -72,25 +72,5 @@ rustc-hash = "=1.1.0"
 [dev-dependencies]
 
 [[bin]]
-name = "union_find"
-path = "src/union_find.rs"
-
-[[bin]]
-name = "xorshift_rand"
-path = "src/xorshift_rand.rs"
-
-[[bin]]
-name = "kyopro_graph"
-path = "src/kyopro_graph.rs"
-
-[[bin]]
 name = "ahc_template"
 path = "src/ahc_template.rs"
-
-[[bin]]
-name = "kyopro_args"
-path = "src/kyopro_args.rs"
-
-[[bin]]
-name = "kyopro_array"
-path = "src/kyopro_array.rs"

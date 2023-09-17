@@ -1,9 +1,9 @@
 use proconio::input_interactive;
 //use itertools::{iproduct, Itertools};
-//use rustc_hash::{FxHashSet, FxHashMap};
+//use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
 use std::time::Instant;
-use xorshift_rand::*;
-use kyopro_args::*;
+use rust_snippets::xorshift_rand::*;
+use rust_snippets::kyopro_args::*;
 
 const START_TEMP: f64 = 100.0;
 const END_TEMP: f64 = 10.0;
@@ -172,10 +172,3 @@ impl Neighbor {
         false
     }
 }
-
-// 実際に使う場合は、各モジュールの中身をコピーする
-mod xorshift_rand;
-mod kyopro_args;
-mod kyopro_array;
-mod union_find;
-mod kyopro_graph;
