@@ -1,7 +1,8 @@
+use std::time::Instant;
+use std::sync::OnceLock;
 use proconio::input_interactive;
 //use itertools::{iproduct, Itertools};
 //use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
-use std::time::Instant;
 use rust_snippets::xorshift_rand::*;
 use rust_snippets::kyopro_args::*;
 
@@ -9,18 +10,26 @@ const START_TEMP: f64 = 100.0;
 const END_TEMP: f64 = 10.0;
 const PATIENCE: usize = 100;
 
-const LIMIT: f64 = 0.5;
-//const LIMIT: f64 = 1.9;     // 提出時には制限時間に合わせる
-const DEBUG: bool = true;     // 提出時にはfalseにする
+const LIMIT_LOCAL: f64 = 0.5;
+const LIMIT_SUBMIT: f64 = 1.9;     // 提出時には制限時間に合わせる
+const DEBUG_LOCAL: bool = true;
+const DEBUG_SUBMIT: bool = false;  // 提出時にはfalseにする
 
-macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );})}
+static ATCODER: OnceLock<bool> = OnceLock::new();
+static DEBUG: OnceLock<bool> = OnceLock::new();
+
+macro_rules! dbg {( $( $x:expr ),* ) => ( if *DEBUG.get().unwrap() {eprintln!($( $x ),* );}) }
 
 fn main() {
+    ATCODER.get_or_init(|| { std::env::var("ATCODER").is_ok() });
+    DEBUG.get_or_init(|| { if *ATCODER.get().unwrap() { DEBUG_SUBMIT } else { DEBUG_LOCAL } });
+    let limit =if *ATCODER.get().unwrap() { LIMIT_SUBMIT } else { LIMIT_LOCAL };
+
     let timer = Instant::now();
     let mut rng = xorshift_rng();
     let e = Env::new();
     let mut a = Agent::new(&e);
-    a.optimize(&e, &mut rng, &timer, LIMIT);
+    a.optimize(&e, &mut rng, &timer, limit);
     println!("{}", a.result());
     eprintln!("N:{} counter:{} score:{}", e.n, a.counter, a.score);
 }
