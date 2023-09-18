@@ -4,10 +4,12 @@
 #![allow(dead_code)]
 
 use std::collections::VecDeque;
+use itertools::{Itertools, iproduct};
 use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
 use bitvec::prelude::*;
 
 use crate::heapmap::*;
+use crate::union_find::*;
 
 const INF: usize = 1e18 as usize;
 
@@ -137,7 +139,7 @@ impl<T: Clone> std::ops::IndexMut<&Coordinate> for dyn MapOperation<T> {
 
 // Cell グラフの頂点の種類
 
-pub trait Cell {
+pub trait Cell: Clone {
     fn is_empty(&self) -> bool;
     fn is_obstacle(&self) -> bool;
 }
@@ -263,85 +265,91 @@ impl std::fmt::Display for Coordinate {
 
 // Adjacency 隣接関係
 
+type HashedAdjacency = HashMap<Coordinate, HashSet<(Coordinate, isize)>>;
+
 pub enum Adjacency {
-    D2dir4 { dir: [Coordinate; 4], name: [&'static str; 4] },
-    D2dir8 { dir: [Coordinate; 8], name: [&'static str; 8] },
-    D3dir6 { dir: [Coordinate; 6], name: [&'static str; 6] },
-    UnDirected { adj: HashMap<usize, HashSet<(usize, isize)>> },
-    Directed { adj: HashMap<usize, HashSet<(usize, isize)>> },
+    D2dir4 { dir: Vec<Coordinate>, name: Vec<&'static str> },
+    D2dir8 { dir: Vec<Coordinate>, name: Vec<&'static str> },
+    D3dir6 { dir: Vec<Coordinate>, name: Vec<&'static str> },
+    UnDirected { adj: HashedAdjacency },
+    Directed { adj: HashedAdjacency },
 }
 
 impl Adjacency {
     pub fn new_d2dir4() -> Self {
         Self::D2dir4 {
-            dir: [coord!(!0, 0), coord!(0, 1), coord!(1, 0), coord!(0, !0)],
-            name: ["U", "R", "D", "L"],
+            dir: vec![coord!(!0, 0), coord!(0, 1), coord!(1, 0), coord!(0, !0)],
+            name: vec!["U", "R", "D", "L"],
         }
     }
     pub fn new_d2dir8() -> Self {
         Self::D2dir8 {
-            dir: [coord!(!0, 0), coord!(!0, 1), coord!(0, 1), coord!(1, 1),
+            dir: vec![coord!(!0, 0), coord!(!0, 1), coord!(0, 1), coord!(1, 1),
                 coord!(1, 0), coord!(1, !0), coord!(0, !0), coord!(!0, !0)],
-            name: ["U", "UR", "R", "DR", "D", "DL", "L", "UL"],
+            name: vec!["U", "UR", "R", "DR", "D", "DL", "L", "UL"],
         }
     }
     pub fn new_d3dir6() -> Self {
         Self::D3dir6 {
-            dir: [coord!(1, 0, 0), coord!(!0, 0, 0), coord!(0, 1, 0),
+            dir: vec![coord!(1, 0, 0), coord!(!0, 0, 0), coord!(0, 1, 0),
                 coord!(0, !0, 0), coord!(0, 0, 1), coord!(0, 0, !0)],
-            name: ["F", "B", "R", "L", "U", "D"],
+            name: vec!["F", "B", "R", "L", "U", "D"],
         }
     }
-    pub fn new_undirected(edges: &[(usize, usize)]) -> Self {
-        let mut adj: HashMap<usize, HashSet<(usize, isize)>> = HashMap::default();
-        for &(u, v) in edges {
-            adj.entry(u).or_default().insert((v, 1));
-            adj.entry(v).or_default().insert((u, 1));
-        }
-        Self::UnDirected { adj }
-    }
-    pub fn new_undirected_with_cost(edges: &[(usize, usize, isize)]) -> Self {
-        let mut adj: HashMap<usize, HashSet<(usize, isize)>> = HashMap::default();
-        for &(u, v, c) in edges {
-            adj.entry(u).or_default().insert((v, c));
-            adj.entry(v).or_default().insert((u, c));
+    pub fn new_undirected(edges: &[(Coordinate, Coordinate)]) -> Self {
+        let mut adj: HashedAdjacency = HashMap::default();
+        for (u, v) in edges {
+            adj.entry(u.clone()).or_default().insert((v.clone(), 1));
+            adj.entry(v.clone()).or_default().insert((u.clone(), 1));
         }
         Self::UnDirected { adj }
     }
-    pub fn new_directed(edges: &[(usize, usize)]) -> Self {
-        let mut adj: HashMap<usize, HashSet<(usize, isize)>> = HashMap::default();
-        for &(u, v) in edges {
-            adj.entry(u).or_default().insert((v, 1));
+    pub fn new_undirected_with_cost(edges: &[(Coordinate, Coordinate, isize)]) -> Self {
+        let mut adj: HashedAdjacency = HashMap::default();
+        for (u, v, c) in edges {
+            adj.entry(u.clone()).or_default().insert((v.clone(), *c));
+            adj.entry(v.clone()).or_default().insert((u.clone(), *c));
+        }
+        Self::UnDirected { adj }
+    }
+    pub fn new_directed(edges: &[(Coordinate, Coordinate)]) -> Self {
+        let mut adj: HashedAdjacency = HashMap::default();
+        for (u, v) in edges {
+            adj.entry(u.clone()).or_default().insert((v.clone(), 1));
         }
         Self::Directed { adj }
     }
-    pub fn new_directed_with_cost(edges: &[(usize, usize, isize)]) -> Self {
-        let mut adj: HashMap<usize, HashSet<(usize, isize)>> = HashMap::default();
-        for &(u, v, c) in edges {
-            adj.entry(u).or_default().insert((v, c));
+    pub fn new_directed_with_cost(edges: &[(Coordinate, Coordinate, isize)]) -> Self {
+        let mut adj: HashedAdjacency = HashMap::default();
+        for (u, v, c) in edges {
+            adj.entry(u.clone()).or_default().insert((v.clone(), *c));
         }
         Self::Directed { adj }
     }
     pub fn get(&self, c: &Coordinate) -> Vec<Coordinate> {
-        match (self, c) {
-            (Self::D2dir4 { dir, .. }, _) =>
+        match self {
+            Self::D2dir4 { dir, .. }
+            | Self::D2dir8 { dir, .. }
+            | Self::D3dir6 { dir, .. } =>
                 dir.iter().map(|d| c.clone() + d.clone()).collect(),
-            (Self::UnDirected { adj }, Coordinate::D1(u)) => {
-                let Some(vs) = adj.get(u) else { return Vec::new() };
-                vs.iter().map(|&(v, _)| coord!(v)).collect()
+            Self::UnDirected { adj }
+            | Self::Directed { adj } => {
+                let Some(vs) = adj.get(c) else { return Vec::new() };
+                vs.iter().map(|(v, _)| v.clone()).collect()
             },
-            _ => panic!("cannot get adjacent coordinates")
         }
     }
     pub fn get_with_cost(&self, c: &Coordinate) -> Vec<(Coordinate, isize)> {
-        match (self, c) {
-            (Self::D2dir4 { dir, .. }, _) =>
+        match self {
+            Self::D2dir4 { dir, .. }
+            | Self::D2dir8 { dir, .. }
+            | Self::D3dir6 { dir, .. } =>
                 dir.iter().map(|d| (c.clone() + d.clone(), 1)).collect(),
-            (Self::UnDirected { adj }, Coordinate::D1(u)) => {
-                let Some(vs) = adj.get(u) else { return Vec::new() };
-                vs.iter().map(|&(v, c)| (coord!(v), c)).collect()
+            Self::UnDirected { adj }
+            | Self::Directed { adj } => {
+                    let Some(vs) = adj.get(c) else { return Vec::new() };
+                vs.iter().map(|(v, cost)| (v.clone(), *cost)).collect()
             },
-            _ => panic!("cannot get adjacent coordinates")
         }
     }
 }
@@ -349,8 +357,10 @@ impl Adjacency {
 
 // グラフ分析に関するユーティリティ関数群
 
+type StaticMap<T> = dyn MapOperation<T> + 'static;
+
 // ダイクストラ法での(距離, dp復元用の1つ前の頂点)を求める
-pub fn dijkstra_template<T: Cell + Clone>(start: &Coordinate, map: &(dyn MapOperation<T> + 'static), adj: &Adjacency)
+pub fn dijkstra_template<T: Cell>(start: &Coordinate, map: &StaticMap<T>, adj: &Adjacency)
         -> Map<(usize, Option<Coordinate>)> {
     let mut res =
         Map::new_with_fill(&map.coordinate_limit(), &(INF, None));
@@ -372,11 +382,77 @@ pub fn dijkstra_template<T: Cell + Clone>(start: &Coordinate, map: &(dyn MapOper
     res
 }
 
+// 差分ダイクストラ法での(距離, dp復元用の1つ前の頂点)を求める
+
+
+// 頂点間の距離が与えられている時に、MSTを求める
+pub fn mst(n: usize, edges: &[(usize, usize, isize)]) -> Vec<(usize, usize, isize)> {
+    let mut res = Vec::new();
+    let mut uf = UnionFind::new(n);
+    for &(u, v, c) in
+            edges.iter().sorted_by_key(|&(_, _, c)| c) {
+        if uf.same(u, v) { continue; }
+        uf.unite(u, v);
+        res.push((u, v, c));
+    }
+    res
+}
+
+// 必須頂点のリストが与えられている時に、Steiner Treeを求める
+// プリム法での近似解を返す
+pub fn steiner_tree<T: Cell>(terminals: &[Coordinate], map: &StaticMap<T>,
+        adj: &Adjacency) -> Vec<(Coordinate, Coordinate)> {
+    if terminals.len() <= 1 { return Vec::new(); }
+    let mut res = Vec::new();
+    // 必須頂点間の距離と経路を求める
+    let dists = terminals.iter().map(|start|
+        dijkstra_template(start, map, adj)).collect_vec();
+    // terminalをすべて使うまで繰り返す
+    let mut used_terminal_ids = HashSet::from_iter(vec![0]);
+    let mut dist_from_tree = vec![(INF, None); terminals.len()];
+    let mut added_tree = HashSet::default();
+    // ターミナルの1つを選び、木に含める
+    added_tree.insert(terminals[0].clone());
+    while used_terminal_ids.len() < terminals.len() {
+        // 木から最小コストでつなげられるターミナルと接続点を選ぶ
+        let terminal_ids = (0..terminals.len())
+            .filter(|&i| !used_terminal_ids.contains(&i))
+            .collect_vec();
+        for (&terminal_id, pos) in iproduct!(&terminal_ids, &added_tree) {
+            let dist = dists[terminal_id][pos].0;
+            if dist < dist_from_tree[terminal_id].0 {
+                dist_from_tree[terminal_id] = (dist, Some(pos.clone()));
+            }
+        }
+        let Some((terminal_id, _, pos)) = dist_from_tree
+            .iter().enumerate()
+            .filter(|&(terminal_id, (_, pos))|
+                !used_terminal_ids.contains(&terminal_id) && pos.is_some())
+            .map(|(terminal_id, (d, pos))| (terminal_id, d, pos.clone().unwrap()))
+            .min_by_key(|(_, &d, _)| d) else { break; };
+        added_tree.clear();
+        added_tree.insert(terminals[terminal_id].clone());
+        used_terminal_ids.insert(terminal_id);
+        // 接続点からターミナルまでの経路を求める
+        let mut cur = pos;
+        while let Some(pre) = &dists[terminal_id][&cur].1 {
+            added_tree.insert(cur.clone());
+            res.push((cur.clone(), pre.clone()));
+            cur = pre.clone();
+        }
+    }
+    res
+}
+
+
+// 差分bfsでの(距離, dp復元用の1つ前の頂点)を求める
+
+
 // dfsで連結サイスを求める（再帰版、遅いため基本的には非再帰の方を使う）
 // startは必ず障害物でないことが保証されている
-pub fn dfs_recursive_template<T: Cell + Clone>(start: &Coordinate, map: &(dyn MapOperation<T> + 'static), adj: &Adjacency)
+pub fn dfs_recursive_template<T: Cell>(start: &Coordinate, map: &StaticMap<T>, adj: &Adjacency)
         -> usize {
-    pub fn dfs_recursive_sub<T: Cell + Clone>(pos: &Coordinate, map: &(dyn MapOperation<T> + 'static), adj: &Adjacency,
+    pub fn dfs_recursive_sub<T: Cell>(pos: &Coordinate, map: &StaticMap<T>, adj: &Adjacency,
             seen: &mut Map<bool>) -> usize {
         seen.set(pos, true);
         let mut res = 1;
@@ -393,7 +469,7 @@ pub fn dfs_recursive_template<T: Cell + Clone>(start: &Coordinate, map: &(dyn Ma
 
 // dfs非再帰版
 // startは必ず障害物でないことが保証されている
-pub fn dfs_template<T: Cell + Clone>(start: &Coordinate, map: &(dyn MapOperation<T> + 'static), adj: &Adjacency)
+pub fn dfs_template<T: Cell>(start: &Coordinate, map: &StaticMap<T>, adj: &Adjacency)
         -> usize {
     let mut res = 0;
     let mut seen = Map::new_with_fill(&map.coordinate_limit(), &false);
@@ -410,7 +486,7 @@ pub fn dfs_template<T: Cell + Clone>(start: &Coordinate, map: &(dyn MapOperation
 }
 
 // bfsでの(距離, dp復元用の1つ前の頂点)を求める
-pub fn bfs_template<T: Cell + Clone>(start: &Coordinate, map: &(dyn MapOperation<T> + 'static), adj: &Adjacency)
+pub fn bfs_template<T: Cell>(start: &Coordinate, map: &StaticMap<T>, adj: &Adjacency)
         -> Map<(usize, Option<Coordinate>)> {
     let mut res =
         Map::new_with_fill(&map.coordinate_limit(), &(INF, None));
@@ -435,15 +511,15 @@ pub fn bfs_template<T: Cell + Clone>(start: &Coordinate, map: &(dyn MapOperation
 // Beginning of the other owner's code.
 // lowlink by terry_u16
 pub struct LowLink<'a, T: 'static> {
-    map: &'a (dyn MapOperation<T> + 'static),
+    map: &'a StaticMap<T>,
     used: Map<bool>,
     order: Map<usize>,
     low: Map<usize>,
     aps: HashSet<Coordinate>,
 }
-impl<'a, T: Cell + Clone + 'static> LowLink<'a, T> {
-    pub fn calc_aps(start: &Coordinate, map: &'a (dyn MapOperation<T> + 'static),
-            adj: &Adjacency) -> HashSet<Coordinate> {
+impl<'a, T: Cell + 'static> LowLink<'a, T> {
+    pub fn calc_aps(start: &Coordinate, map: &'a StaticMap<T>, adj: &Adjacency)
+            -> HashSet<Coordinate> {
         let used = Map::new_with_fill(&map.coordinate_limit(), &false);
         let order = Map::new_with_fill(&map.coordinate_limit(), &0);
         let low = Map::new_with_fill(&map.coordinate_limit(), &0);
@@ -493,6 +569,7 @@ impl<'a, T: Cell + Clone + 'static> LowLink<'a, T> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::xorshift_rand::*;
 
     #[test]
     fn basic_matrix2d() {
@@ -512,6 +589,7 @@ mod test {
         let start = coord!(0);
         let edges =
             vec![(0, 1, 1), (0, 2, 2), (1, 4, 5), (2, 4, 5), (2, 6, 1), (4, 6, 2), (4, 5, 1)];
+        let edges = edges.iter().map(|&(u, v, c)| (coord!(u), coord!(v), c)).collect_vec();
         let adj = Adjacency::new_undirected_with_cost(&edges);
         let res = bfs_template(&start, &map, &adj);
         assert_eq!(res.data, vec![(0, None), (1, Some(coord!(0))), (1, Some(coord!(0))),
@@ -527,6 +605,7 @@ mod test {
         let start = coord!(0);
         let edges =
             vec![(0, 1), (0, 2), (1, 4), (2, 4), (2, 6), (4, 6), (4, 5)];
+        let edges = edges.iter().map(|&(u, v)| (coord!(u), coord!(v))).collect_vec();
         let adj = Adjacency::new_undirected(&edges);
         let res = LowLink::calc_aps(&start, &map, &adj);
         assert_eq!(res, HashSet::from_iter(vec![coord!(4)]));
@@ -553,5 +632,26 @@ mod test {
         let adj = Adjacency::new_d2dir4();
         let res = dfs_recursive_template(&start, &map, &adj);
         assert_eq!(res, coordinate_limit.norm() - 1);
+    }
+
+    #[test]
+    fn test_steiner_tree() {
+        let coordinate_limit = coord!(5, 5);
+        let map = Map::new_with_fill(&coordinate_limit, &false);
+        let adj = Adjacency::new_d2dir4();
+        let mut terminals = vec![
+            coord!(0, 0), coord!(0, 2), coord!(2, 4), coord!(4, 1)];
+        let res = steiner_tree(&terminals, &map, &adj);
+        assert_eq!(res.len(), 9);
+        let mut rng = xorshift_rng();
+        for _ in 0..100 {
+            terminals.shuffle(&mut rng);
+            let res = steiner_tree(&terminals, &map, &adj);
+            if terminals[0] == coord!(4, 1) && terminals[1] == coord!(0, 0) {
+                assert_eq!(res.len(), 11, "{:?}", terminals);   // 最適解ではない
+            } else {
+                assert_eq!(res.len(), 9, "{:?}", terminals);    // 最適解
+            }
+        }
     }
 }
