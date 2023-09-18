@@ -6,8 +6,8 @@ Union Find
 結合操作はUndoしたいなら、undoable_unionとundoを使う
 
 Refer https://github.com/rust-lang-ja/ac-library-rs
-Refer https://note.nkmk.me/python-union-find/
-Refer https://nyaannyaan.github.io/library/data-structure/rollback-union-find.hpp.html
+Refer https://note.nkmk.me/python-unite-find/
+Refer https://nyaannyaan.github.io/library/data-structure/rollback-unite-find.hpp.html
 */
 
 #![allow(dead_code)]
@@ -42,15 +42,15 @@ impl UnionFind {
         (0..self.parents.len()).for_each(|i| { self.root(i); });
     }
     // 木を結合する  O(α(N))
-    pub fn union(&mut self, x: usize, y: usize) {
+    pub fn unite(&mut self, x: usize, y: usize) {
         let x = self.root(x);
         let y = self.root(y);
-        self.union_roots_(x, y, false);
+        self.unite_roots_(x, y, false);
     }
-    pub fn undoable_union(&mut self, x: usize, y: usize) {
-        self.union_roots_(self.root_wo_compress(x), self.root_wo_compress(y), true);
+    pub fn undoable_unite(&mut self, x: usize, y: usize) {
+        self.unite_roots_(self.root_wo_compress(x), self.root_wo_compress(y), true);
     }
-    fn union_roots_(&mut self, mut x: usize, mut y: usize, history: bool) {  // 根同士の結合
+    fn unite_roots_(&mut self, mut x: usize, mut y: usize, history: bool) {  // 根同士の結合
         if history {
             self.history.push((x, self.parents[x]));
             self.history.push((y, self.parents[y]));
@@ -129,7 +129,7 @@ fn main() {
     let mut uf = UnionFind::new(n);
     for (p, a, b) in s {
         if p == 0 {
-            uf.union(a, b);
+            uf.unite(a, b);
         } else {
             println!("{}", if uf.same_wo_compress(a, b) { "Yes" } else { "No" });
         }
@@ -155,13 +155,13 @@ mod tests {
         let mut uf = UnionFind::new(n);
         assert_eq!(uf.roots(), (0..n).collect::<HashSet<usize>>());
         assert_eq!(uf.norm2(), 10);
-        uf.union(1, 5);
+        uf.unite(1, 5);
         assert_eq!(uf.norm2(), 12);
-        uf.union(2, 3);
+        uf.unite(2, 3);
         assert_eq!(uf.norm2(), 14);
-        uf.undoable_union(7, 8);
-        uf.undoable_union(4, 8);
-        uf.undoable_union(0, 4);
+        uf.undoable_unite(7, 8);
+        uf.undoable_unite(4, 8);
+        uf.undoable_unite(0, 4);
         assert_eq!(uf.norm2(), 26);
         assert_eq!(uf.roots_diff(), HashSet::from_iter(vec![0, 4, 8]));
         assert_eq!(uf.sizes_diff(), (vec![1, 1, 1, 1], vec![4]));
@@ -197,9 +197,9 @@ mod tests {
     impl A {
         fn new() -> Self { Self { uf: UnionFind::new(5), } }
         fn init(&mut self) {
-            self.uf.union(1, 2);
-            self.uf.union(4, 2);
-            self.uf.union(0, 3);
+            self.uf.unite(1, 2);
+            self.uf.unite(4, 2);
+            self.uf.unite(0, 3);
         }
         fn compute_score(&self) -> usize { self.uf.norm2() }
     }
@@ -216,7 +216,7 @@ mod tests {
         let n = 100_000_000;
         let mut uf = UnionFind::new(n);
         for i in 0..(n - 1) {
-            uf.union(i, i + 1);
+            uf.unite(i, i + 1);
         }
         assert_eq!(uf.group_count(), 1);
     }
@@ -226,12 +226,12 @@ mod tests {
         let n = 100_000;
         let mut uf = UnionFind::new(n);
         for i in 0..(n - 2) {
-            uf.union(i, i + 1);
+            uf.unite(i, i + 1);
         }
         for _ in 0..100_000 {
             let mut uf1 = uf.clone();
             assert!(!uf1.same(n - 2, n - 1));
-            uf1.union(n - 2, n - 1);
+            uf1.unite(n - 2, n - 1);
             assert!(uf1.same(n - 2, n - 1));
         }
     }
@@ -241,12 +241,12 @@ mod tests {
         let n = 100_000;
         let mut uf = UnionFind::new(n);
         for i in 0..(n - 2) {
-            uf.union(i, i + 1);
+            uf.unite(i, i + 1);
         }
         uf.squeeze();
         for _ in 0..100_000_000 {
             assert!(!uf.same(n - 2, n - 1));
-            uf.undoable_union(n - 2, n - 1);
+            uf.undoable_unite(n - 2, n - 1);
             assert!(uf.same(n - 2, n - 1));
             uf.undo();
         }
@@ -257,12 +257,12 @@ mod tests {
         let n = 100_000;
         let mut uf = UnionFind::new(n);
         for i in 0..(n - 2) {
-            uf.union(i, i + 1);
+            uf.unite(i, i + 1);
         }
         assert_eq!(uf.norm2(), (n - 1).pow(2) + 1);
         for _ in 0..10_000 {
             let mut uf1 = uf.clone();
-            uf1.union(n - 2, n - 1);
+            uf1.unite(n - 2, n - 1);
             assert_eq!(uf1.norm2(), n.pow(2));
         }
     }
@@ -272,13 +272,13 @@ mod tests {
         let n = 100_000;
         let mut uf = UnionFind::new(n);
         for i in 0..(n - 2) {
-            uf.union(i, i + 1);
+            uf.unite(i, i + 1);
         }
         uf.squeeze();
         let score = uf.norm2();
         assert_eq!(score, (n - 1).pow(2) + 1);
         for _ in 0..10_000_000 {
-            uf.undoable_union(n - 2, n - 1);
+            uf.undoable_unite(n - 2, n - 1);
             assert_eq!(score + uf.norm2_diff(), n.pow(2));
             uf.undo();
         }
