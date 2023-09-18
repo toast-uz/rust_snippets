@@ -9,7 +9,6 @@ use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
 use bitvec::prelude::*;
 
 use crate::heapmap::*;
-use crate::union_find::*;
 
 const INF: usize = 1e18 as usize;
 
@@ -385,23 +384,10 @@ pub fn dijkstra_template<T: Cell>(start: &Coordinate, map: &StaticMap<T>, adj: &
 // 差分ダイクストラ法での(距離, dp復元用の1つ前の頂点)を求める
 
 
-// 頂点間の距離が与えられている時に、MSTを求める
-pub fn mst(n: usize, edges: &[(usize, usize, isize)]) -> Vec<(usize, usize, isize)> {
-    let mut res = Vec::new();
-    let mut uf = UnionFind::new(n);
-    for &(u, v, c) in
-            edges.iter().sorted_by_key(|&(_, _, c)| c) {
-        if uf.same(u, v) { continue; }
-        uf.unite(u, v);
-        res.push((u, v, c));
-    }
-    res
-}
-
 // 必須頂点のリストが与えられている時に、Steiner Treeを求める
 // プリム法での近似解を返す
 pub fn steiner_tree<T: Cell>(terminals: &[Coordinate], map: &StaticMap<T>,
-        adj: &Adjacency) -> Vec<(Coordinate, Coordinate)> {
+        adj: &Adjacency) -> Vec<(Coordinate, Coordinate, isize)> {
     if terminals.len() <= 1 { return Vec::new(); }
     let mut res = Vec::new();
     // 必須頂点間の距離と経路を求める
@@ -435,9 +421,10 @@ pub fn steiner_tree<T: Cell>(terminals: &[Coordinate], map: &StaticMap<T>,
         used_terminal_ids.insert(terminal_id);
         // 接続点からターミナルまでの経路を求める
         let mut cur = pos;
-        while let Some(pre) = &dists[terminal_id][&cur].1 {
+        while let (d, Some(pre)) = &dists[terminal_id][&cur] {
             added_tree.insert(cur.clone());
-            res.push((cur.clone(), pre.clone()));
+            let d = *d as isize - dists[terminal_id][pre].0 as isize;
+            res.push((cur.clone(), pre.clone(), d));
             cur = pre.clone();
         }
     }
@@ -647,10 +634,11 @@ mod test {
         for _ in 0..100 {
             terminals.shuffle(&mut rng);
             let res = steiner_tree(&terminals, &map, &adj);
+            let res_len = res.iter().map(|(_, _, c)| c).sum::<isize>();
             if terminals[0] == coord!(4, 1) && terminals[1] == coord!(0, 0) {
-                assert_eq!(res.len(), 11, "{:?}", terminals);   // 最適解ではない
+                assert_eq!(res_len, 11, "{:?}", terminals);   // 最適解ではない
             } else {
-                assert_eq!(res.len(), 9, "{:?}", terminals);    // 最適解
+                assert_eq!(res_len, 9, "{:?}", terminals);    // 最適解
             }
         }
     }
