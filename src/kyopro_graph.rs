@@ -386,6 +386,7 @@ pub fn dijkstra_template<T: Cell>(start: &Coordinate, map: &StaticMap<T>, adj: &
 
 // 必須頂点のリストが与えられている時に、Steiner Treeを求める
 // プリム法での近似解を返す
+// 必須頂点をシャッフルすると結果が変わるため、何度も試すことで、最適解に近づきやすくなる
 pub fn steiner_tree<T: Cell>(terminals: &[Coordinate], map: &StaticMap<T>,
         adj: &Adjacency) -> Vec<(Coordinate, Coordinate, isize)> {
     if terminals.len() <= 1 { return Vec::new(); }
