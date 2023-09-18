@@ -152,7 +152,7 @@ impl<T: Clone + PartialOrd> InversionNumber<T> for [T] {
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
-// cargo test benchmark1 --bin kyopro_array --release    2.0 sec（hashでのidx取得10億回）
+// cargo test -r kyopro_array::tests::benchmark1    1.9 sec（hashでのidx取得10億回）
 // * FxHasherを使わないと、約15 sec
 
 #[cfg(test)]

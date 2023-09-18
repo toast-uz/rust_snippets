@@ -141,8 +141,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
-// cargo test benchmark1 --bin xorshift_rand --release   1.0 sec（1億回）世間一般のrandクレート
-// cargo test benchmark2 --bin xorshift_rand --release   2.3 sec（10億回）今回作成のxorshift
+// cargo test -r xorshift_rand::tests::benchmark1    1.0 sec（1億回）世間一般のrandクレート
+// cargo test -r xorshift_rand::tests::benchmark2    2.2 sec（10億回）今回作成のxorshift
 
 
 #[cfg(test)]

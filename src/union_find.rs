@@ -21,7 +21,9 @@ pub struct UnionFind {
 
 impl UnionFind {
     pub fn new(n: usize) -> Self { Self { parents: vec![-1; n], ..Default::default() } }
+    #[inline]
     pub fn is_root(&self, x: usize) -> bool { self.parents[x] < 0 }
+    #[inline]
     pub fn size_of_root(&self, x: usize) -> usize { -self.parents[x] as usize }
     // 木の根 再帰版  O(α(N)) 経路圧縮あり
     pub fn root(&mut self, x: usize) -> usize {
@@ -136,11 +138,11 @@ fn main() {
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
-// cargo test benchmark1 --bin union_find --release    1.4 sec
-// cargo test benchmark2 --bin union_find --release    2.6 sec（Undo機能未利用 10万回）
-// cargo test benchmark3 --bin union_find --release    2.3 sec（Undo機能利用 1億回）
-// cargo test benchmark4 --bin union_find --release    1.4 sec（スコアフル計算 1万回）
-// cargo test benchmark5 --bin union_find --release    2.4 sec（スコア差分計算 1000万回）
+// cargo test -r union_find::tests::benchmark1    1.6 sec
+// cargo test -r union_find::tests::benchmark2    2.7 sec（Undo機能未利用 10万回）
+// cargo test -r union_find::tests::benchmark3    2.2 sec（Undo機能利用 1億回）
+// cargo test -r union_find::tests::benchmark4    1.0 sec（スコアフル計算 1万回）
+// cargo test -r union_find::tests::benchmark5    2.1 sec（スコア差分計算 1000万回）
 
 #[cfg(test)]
 mod tests {
