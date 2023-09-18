@@ -485,12 +485,17 @@ impl<'a, T: Cell + Clone + 'static> LowLink<'a, T> {
 // End of the other owner's code.
 
 
+///////////////////////////////////////////////////////////
+// テストとベンチマーク
+// cargo test -r kyopro_graph::test::dfs_benchmark    0.6 sec
+// cargo test -r kyopro_graph::test::dfs_recursive_benchmark    1.3 sec
+
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
-    fn test_basic_matrix2d() {
+    fn basic_matrix2d() {
         let coordinate_limit = coord!(2, 3);
         let mut map = Map::new_with_fill(&coordinate_limit, &DefaultCell::Empty);
         map[&coord!(0, 1)] = DefaultCell::Obstacle;
@@ -502,7 +507,7 @@ mod test {
     }
 
     #[test]
-    fn test_basic_grid() {
+    fn basic_grid() {
         let map: Map<bool> = Map::new(&coord!(7));
         let start = coord!(0);
         let edges =
@@ -528,7 +533,7 @@ mod test {
     }
 
     #[test]
-    fn test_dfs_benchmark() {
+    fn dfs_benchmark() {
         let coordinate_limit = coord!(2000, 2000);  // 0.6s
         let mut map = Map::new_with_fill(&coordinate_limit, &false);
         map.set(&coord!(0, 1), true);
@@ -539,7 +544,7 @@ mod test {
     }
 
     #[test]
-    fn test_dfs_recursive_benchmark() {
+    fn dfs_recursive_benchmark() {
         // 環境変数 RUST_MIN_STACK を大きくしておく必要がある
         let coordinate_limit = coord!(2000, 2000);  // 1.7s
         let mut map = Map::new_with_fill(&coordinate_limit, &false);
