@@ -76,6 +76,11 @@ impl XorshiftRng {
         self._xorshift();
         self.seed as f64 / u64::MAX as f64
     }
+    // u64の乱数を求める
+    pub fn gen_u64(&mut self) -> u64 {
+        self._xorshift();
+        self.seed
+    }
 }
 
 pub trait SliceXorshiftRandom<T> {
