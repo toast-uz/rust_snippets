@@ -6,7 +6,7 @@
 use std::collections::VecDeque;
 use itertools::{Itertools, iproduct};
 use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
-use bitvec::prelude::*;
+use fixedbitset::FixedBitSet;
 
 use crate::heapmap::*;
 use crate::xorshift_rand::*;
@@ -51,15 +51,13 @@ impl<T: Clone> std::ops::IndexMut<&Coordinate> for Map<T> {
 #[derive(Clone, Debug)]
 pub struct BitMap {
     pub coordinate_limit: Coordinate,
-    pub data: BitVec,
+    pub data: FixedBitSet,
 }
 
 impl BitMap {
     pub fn new(coordinate_limit: &Coordinate) -> Self {
         let n = coordinate_limit.norm();
-        let mut res = Self { coordinate_limit: coordinate_limit.clone(), data: BitVec::with_capacity(n) };
-        unsafe { res.data.set_len(n); }
-        todo!()
+        Self { coordinate_limit: coordinate_limit.clone(), data: FixedBitSet::with_capacity(n) }
     }
 }
 
@@ -69,6 +67,7 @@ impl std::ops::Index<&Coordinate> for BitMap {
     #[inline]
     fn index(&self, c: &Coordinate) -> &Self::Output { &self.get(c).unwrap() }
 }
+
 
 pub trait MapOperation<T> {
     fn len(&self) -> usize;
@@ -109,8 +108,7 @@ impl MapOperation<bool> for BitMap {
     fn get(&self, c: &Coordinate) -> Option<&bool> {
         let p = self.c2p(c);
         if p >= self.len() { return None; }
-        let Some(&res) = self.data.get(p).as_deref() else { return None; };
-        if res { Some(&true) } else { Some(&false) }
+        if self.data.contains(p) { Some(&true) } else { Some(&false) }
     }
     fn get_mut(&mut self, _c: &Coordinate) -> Option<&mut bool> {
         unimplemented!("cannot get mut from BitMap")
@@ -512,7 +510,7 @@ pub fn dfs_recursive_template<T: Cell>(start: &Coordinate, map: &StaticMap<T>, a
 pub fn dfs_template<T: Cell>(start: &Coordinate, map: &StaticMap<T>, adj: &Adjacency)
         -> usize {
     let mut res = 0;
-    let mut seen = Map::new_with_fill(&map.coordinate_limit(), &false);
+    let mut seen = BitMap::new(&map.coordinate_limit());
     let mut todo = vec![start.clone()];
     while let Some(pos) = todo.pop() {
         if seen[&pos] { continue; }
@@ -533,7 +531,7 @@ pub fn bfs_template<T: Cell>(start: &Coordinate, map: &StaticMap<T>, adj: &Adjac
     res[start] = (0, None);
     let mut todo: VecDeque<(usize, Coordinate, Option<Coordinate>)> = VecDeque::new();
     todo.push_front((0, start.clone(), None));
-    let mut seen = Map::new_with_fill(&map.coordinate_limit(), &false);
+    let mut seen = BitMap::new(&map.coordinate_limit());
     while let Some((dist, pos, pre)) = todo.pop_back() {
         if seen[&pos] { continue; }
         seen.set(&pos, true);
@@ -603,8 +601,8 @@ impl<'a, T: Cell + 'static> LowLink<'a, T> {
 
 ///////////////////////////////////////////////////////////
 // テストとベンチマーク
-// cargo test -r kyopro_graph::test::dfs_benchmark    0.6 sec
-// cargo test -r kyopro_graph::test::dfs_recursive_benchmark    1.3 sec
+// cargo test -r kyopro_graph::test::dfs_benchmark    0.7 sec
+// cargo test -r kyopro_graph::test::dfs_recursive_benchmark    1.4 sec
 
 #[cfg(test)]
 mod test {
@@ -653,7 +651,7 @@ mod test {
     #[test]
     fn dfs_benchmark() {
         let coordinate_limit = coord!(2000, 2000);  // 0.6s
-        let mut map = Map::new_with_fill(&coordinate_limit, &false);
+        let mut map = BitMap::new(&coordinate_limit);
         map.set(&coord!(0, 1), true);
         let start = coord!(0, 0);
         let adj = Adjacency::new_d2dir4();
@@ -665,7 +663,7 @@ mod test {
     fn dfs_recursive_benchmark() {
         // 環境変数 RUST_MIN_STACK を大きくしておく必要がある
         let coordinate_limit = coord!(2000, 2000);  // 1.7s
-        let mut map = Map::new_with_fill(&coordinate_limit, &false);
+        let mut map = BitMap::new(&coordinate_limit);
         map.set(&coord!(0, 1), true);
         let start = coord!(0, 0);
         let adj = Adjacency::new_d2dir4();
