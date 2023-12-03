@@ -1,5 +1,7 @@
 // todo! differentiate bfs
 // todo! differentiate dijkstra
+// todo! 結節点判定（切らない・つながない） 3*3、3x3x3
+// https://x.com/chokudai/status/1706124817915908481?s=20
 
 #![allow(dead_code)]
 
@@ -15,7 +17,7 @@ const INF: usize = 1e18 as usize;
 
 // Map グラフの頂点集合
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Map<T> {
     pub n: usize,
     pub coordinate_limit: Coordinate,
@@ -48,7 +50,7 @@ impl<T: Clone> std::ops::IndexMut<&Coordinate> for Map<T> {
 }
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BitMap {
     pub coordinate_limit: Coordinate,
     pub data: FixedBitSet,
@@ -240,6 +242,13 @@ impl Coordinate {
             Self::D3 { x, y, z } => *x * *y * *z,
         }
     }
+    pub fn elms(&self) -> Vec<usize> {
+        match self {
+            Self::D1(x) => vec![*x],
+            Self::D2 { i, j } => vec![*i, *j],
+            Self::D3 { x, y, z } => vec![*x, *y, *z],
+        }
+    }
     pub fn invert(&self) -> Self {
         match self {
             Self::D1(x) => coord!(0usize.wrapping_sub(*x)),
@@ -269,6 +278,10 @@ impl Coordinate {
             _ => panic!("cannot convert different dimension coordinates"),
          }
     }
+}
+
+impl Default for Coordinate {
+    fn default() -> Self { Self::D1(0) }
 }
 
 // 全ての軸の順序が一致する場合に限り、比較可能とする
@@ -307,6 +320,13 @@ impl std::ops::Add for Coordinate {
     }
 }
 
+impl std::ops::Sub for Coordinate {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        self + rhs.invert()
+    }
+}
+
 impl std::fmt::Display for Coordinate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -317,15 +337,30 @@ impl std::fmt::Display for Coordinate {
     }
 }
 
+// 2次元マップの表示
+pub fn repr_2d_map<T: Clone>(map: &Map<T>, f: &dyn Fn(&T) -> String, sep: &str) -> String {
+    let mut res = Vec::new();
+    let coordinate_limit = map.coordinate_limit.elms();
+    let (height, width) = (coordinate_limit[0], coordinate_limit[1]);
+    for i in 0..height {
+        let mut row = Vec::new();
+        for j in 0..width { row.push(f(&map[&coord!{i, j}])); }
+        res.push(row.iter().join(sep));
+    }
+    res.iter().join("\n")
+}
+
 
 // Adjacency 隣接関係
 
 type HashedAdjacency = HashMap<Coordinate, HashSet<(Coordinate, isize)>>;
 
+#[derive(Clone, Debug)]
 pub enum Adjacency {
     D2dir4 { dir: Vec<Coordinate>, name: Vec<&'static str> },
     D2dir8 { dir: Vec<Coordinate>, name: Vec<&'static str> },
     D3dir6 { dir: Vec<Coordinate>, name: Vec<&'static str> },
+    D2dir4wall { dir: Vec<Coordinate>, name: Vec<&'static str>, h: Vec<Vec<bool>>, v: Vec<Vec<bool>> },
     UnDirected { adj: HashedAdjacency },
     Directed { adj: HashedAdjacency },
 }
@@ -349,6 +384,14 @@ impl Adjacency {
             dir: vec![coord!(1, 0, 0), coord!(!0, 0, 0), coord!(0, 1, 0),
                 coord!(0, !0, 0), coord!(0, 0, 1), coord!(0, 0, !0)],
             name: vec!["F", "B", "R", "L", "U", "D"],
+        }
+    }
+    pub fn new_d2dir4wall(h: &[Vec<char>], v: &[Vec<char>]) -> Self {
+        Self::D2dir4wall {
+            dir: vec![coord!(!0, 0), coord!(0, 1), coord!(1, 0), coord!(0, !0)],
+            name: vec!["U", "R", "D", "L"],
+            h: h.iter().map(|row| row.iter().map(|&c| c == '1').collect()).collect(),
+            v: v.iter().map(|row| row.iter().map(|&c| c == '1').collect()).collect(),
         }
     }
     pub fn new_undirected(edges: &[(Coordinate, Coordinate)]) -> Self {
@@ -387,6 +430,21 @@ impl Adjacency {
             | Self::D2dir8 { dir, .. }
             | Self::D3dir6 { dir, .. } =>
                 dir.iter().map(|d| c.clone() + d.clone()).collect(),
+            Self::D2dir4wall { dir, name, h, v } => {
+                let mut res = Vec::new();
+                let Coordinate::D2{i, j} = *c else { panic!() };
+                for (d, name) in dir.iter().zip(name.iter()) {
+                    let next = c.clone() + d.clone();
+                    match name {
+                        &"U" => if i > 0 && !h[i - 1][j] { res.push(next); },
+                        &"L" => if j > 0 && !v[i][j - 1] { res.push(next); },
+                        &"D" => if i < h.len() && !h[i][j] { res.push(next); },
+                        &"R" => if j < v[i].len() && !v[i][j] { res.push(next); },
+                    _ => unreachable!(),
+                    }
+                }
+                res
+            },
             Self::UnDirected { adj }
             | Self::Directed { adj } => {
                 let Some(vs) = adj.get(c) else { return Vec::new() };
@@ -405,10 +463,26 @@ impl Adjacency {
                     let Some(vs) = adj.get(c) else { return Vec::new() };
                 vs.iter().map(|(v, cost)| (v.clone(), *cost)).collect()
             },
+            _ => unreachable!(),
+        }
+    }
+    pub fn dir2name(&self, dir_: &Coordinate) -> String {
+        match self {
+            Self::D2dir4 { dir, name } |
+                Self::D3dir6 { dir, name } |
+                Self::D2dir8 { dir, name } |
+                Self::D2dir4wall { dir, name, h: _, v: _ } => {
+                    let i = dir.iter().position(|d| d == dir_).unwrap();
+                    name[i].to_string()
+            },
+            _ => panic!("cannot convert direction to name"),
         }
     }
 }
 
+impl Default for Adjacency {
+    fn default() -> Self { Self::new_d2dir4() }
+}
 
 // グラフ分析に関するユーティリティ関数群
 
