@@ -18,6 +18,7 @@ const DEBUG_SUBMIT: bool = false;  // 提出時にはfalseにする
 static ATCODER: OnceLock<bool> = OnceLock::new();
 static DEBUG: OnceLock<bool> = OnceLock::new();
 
+#[allow(unused_macros)]
 macro_rules! dbg {( $( $x:expr ),* ) => ( if *DEBUG.get().unwrap() {eprintln!($( $x ),* );}) }
 
 fn main() {
