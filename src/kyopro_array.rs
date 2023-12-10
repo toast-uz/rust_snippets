@@ -4,9 +4,14 @@ use std::hash::Hash;
 use itertools::{Itertools, iproduct};
 use rustc_hash::FxHashMap as HashMap;
 use ac_library::fenwicktree::FenwickTree;
+use crate::xorshift_rand::*;
 
 // PartialOrd は、比較結果がNoneにはならない前提とする
 const ERR_PARTIALORD: &str = "PartialOrd cannot be None";
+const INF: usize = 1 << 60;
+const DEBUG: bool = false;
+
+macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
 
 // 引数順序
 pub trait ArgPartialOrd<T> {
@@ -148,6 +153,133 @@ impl<T: Clone + PartialOrd> InversionNumber<T> for [T] {
         res
     }
 }
+
+// TSP
+pub trait TSP<T> {
+    // 0 <= i, j <= n
+    fn tsp_2opt(&mut self, i: usize, j: usize);
+    fn kick(&mut self);
+    fn tsp_2opt_diff_cost(&self, i: usize, j: usize,
+        cost: &dyn Fn(&T, &T) -> isize) -> isize;
+    fn tsp_cost(&self, cost: &dyn Fn(&T, &T) -> isize) -> isize;
+    fn tsp_exact(&mut self, cost_f: &dyn Fn(&T, &T) -> isize);
+    fn tsp_climb(&mut self, cost: &dyn Fn(&T, &T) -> isize,
+        max_counter: usize, patience: usize, rng: &mut XorshiftRng);
+}
+
+impl<T: Clone + std::fmt::Debug> TSP<T> for Vec<T> {
+    // 2-opt
+    fn tsp_2opt(&mut self, i: usize, j: usize) {
+        for k in (i + 1)..=((i + j) / 2) {
+            self.swap(k, i + j - k + 1);
+        }
+    }
+    // kick: double bridge
+    fn kick(&mut self) {
+        if self.len() < 5 { return; }
+        let mut rng = xorshift_rng();
+        let v = rng.gen_range_multiple(1..self.len(), 4);
+        let mut res = Vec::new();
+        for i in 0..v[0] { res.push(self[i].clone()); }
+        for i in v[2]..v[3] { res.push(self[i].clone()); }
+        for i in v[1]..v[2] { res.push(self[i].clone()); }
+        for i in v[0]..v[1] { res.push(self[i].clone()); }
+        for i in v[3]..self.len() { res.push(self[i].clone()); }
+        *self = res;
+    }
+    // 差分コスト
+    fn tsp_2opt_diff_cost(&self, i: usize, j: usize,
+            cost_f: &dyn Fn(&T, &T) -> isize) -> isize {
+        cost_f(&self[i], &self[j]) + cost_f(&self[i + 1], &self[j + 1])
+        - cost_f(&self[i], &self[i + 1]) - cost_f(&self[j], &self[j + 1])
+    }
+    // フルコスト
+    fn tsp_cost(&self, cost_f: &dyn Fn(&T, &T) -> isize) -> isize {
+        let mut res = 0;
+        for i in 0..(self.len() - 1) { res += cost_f(&self[i], &self[i + 1]); }
+        res
+    }
+    // 厳密解（両端固定）
+    fn tsp_exact(&mut self, cost_f: &dyn Fn(&T, &T) -> isize) {
+        if self.len() <= 3 { return; }
+        dbg!("START tsp exact solution, size:{} cost:{} {:?}", self.len(), self.tsp_cost(cost_f), self);
+        let n = self.len() - 2;
+        let mut dp = vec![vec![INF as isize; n]; 1 << n];
+        let mut pre = vec![vec![INF; n]; 1 << n];  // dp復元用
+        (0..n).for_each(|u| dp[1 << u][u] = cost_f(&self[0], &self[u + 1]));
+        for bit in 0..(1 << n) {
+            for u in 0..n {
+                if (bit >> u) & 1 == 0 && bit > 0 { continue; }
+                for v in 0..n {
+                    if (bit >> v) & 1 == 1 { continue; }
+                    let next_bit = bit | (1 << v);
+                    let new_cost = dp[bit][u] + cost_f(&self[u + 1], &self[v + 1]);
+                    if new_cost < dp[next_bit][v] {
+                        dp[next_bit][v] = new_cost;
+                        pre[next_bit][v] = u;
+                    }
+                }
+            }
+        }
+        let mut res = vec![self[self.len() - 1].clone()];
+        let mut bit = (1 << n) - 1;
+        let mut v = (0..n).min_by_key(|&u|
+            dp[bit][u] + cost_f(&self[u + 1], &self[self.len() - 1])).unwrap();
+        while v < INF {
+            res.push(self[v + 1].clone());
+            let u = pre[bit][v];
+            bit -= 1 << v;
+            v = u;
+        }
+        res.push(self[0].clone());
+        res.reverse();
+        *self = res;
+        dbg!("result size:{} cost:{} {:?}", self.len(), self.tsp_cost(cost_f), self);
+    }
+    // 山登り法+キック+差分コスト計算
+    fn tsp_climb(&mut self, cost_f: &dyn Fn(&T, &T) -> isize,
+            max_counter: usize, patience: usize, rng: &mut XorshiftRng) {
+        if self.len() <= 3 { return; }  // gen_range_multipleが3以上を要求するため
+        let mut best = (self.tsp_cost(cost_f), 0, self.clone());
+        let mut cost = best.0;
+        dbg!("START tsp climb, size:{}", self.len());
+        for counter in 0..max_counter {
+            if counter >= best.1 + patience {
+                // ベストに戻してキックする
+                *self = best.2.clone();
+                best.1 = counter;
+                self.kick();
+                cost = self.tsp_cost(cost_f);
+                dbg!("back to best and kick {} {}", counter, cost);
+                continue;
+            }
+            let v = rng.gen_range_multiple(0..(self.len() - 1), 2);
+            let (i, j) = (v[0], v[1]);
+            let diff_cost = self.tsp_2opt_diff_cost(i, j, cost_f);
+            if diff_cost >= 0 { continue; }
+            self.tsp_2opt(i, j);
+            cost += diff_cost;
+            if cost < best.0 {
+                best = (cost, counter, self.clone());
+                dbg!("new_best {} {}", counter, cost);
+            }
+        }
+    }
+}
+
+// 統計関数
+pub trait Statistics<T> {
+    fn mean(&self) -> T;
+    fn var(&self) -> T;
+}
+
+    impl Statistics<f64> for [f64] {
+        fn mean(&self) -> f64 { self.iter().sum::<f64>() / self.len() as f64 }
+        fn var(&self) -> f64 {
+            let mean = self.mean();
+            self.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / self.len() as f64
+        }
+    }
 
 
 ///////////////////////////////////////////////////////////
