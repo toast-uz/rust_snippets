@@ -1,38 +1,27 @@
 use std::time::Instant;
-use std::sync::OnceLock;
 use proconio::input_interactive;
 //use itertools::{iproduct, Itertools};
 //use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
 use rust_snippets::xorshift_rand::*;
 use rust_snippets::kyopro_args::*;
 
-const START_TEMP: f64 = 100.0;
-const END_TEMP: f64 = 10.0;
+const LIMIT: f64 = 0.5;
+const DEBUG: bool = true;
+const START_TEMP: f64 = 1e9;
+const END_TEMP: f64 = 1e-9;
 const PATIENCE: usize = 100;
 
-const LIMIT_LOCAL: f64 = 0.5;
-const LIMIT_SUBMIT: f64 = 1.9;     // 提出時には制限時間に合わせる
-const DEBUG_LOCAL: bool = true;
-const DEBUG_SUBMIT: bool = false;  // 提出時にはfalseにする
-
-static ATCODER: OnceLock<bool> = OnceLock::new();
-static DEBUG: OnceLock<bool> = OnceLock::new();
-
-#[allow(unused_macros)]
-macro_rules! dbg {( $( $x:expr ),* ) => ( if *DEBUG.get().unwrap() {eprintln!($( $x ),* );}) }
+macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
 
 fn main() {
-    ATCODER.get_or_init(|| { std::env::var("ATCODER").is_ok() });
-    DEBUG.get_or_init(|| { if *ATCODER.get().unwrap() { DEBUG_SUBMIT } else { DEBUG_LOCAL } });
-    let limit =if *ATCODER.get().unwrap() { LIMIT_SUBMIT } else { LIMIT_LOCAL };
-
     let timer = Instant::now();
     let mut rng = xorshift_rng();
     let e = Env::new();
     let mut a = Agent::new(&e);
-    a.optimize(&e, &mut rng, &timer, limit);
+    a.optimize(&e, &mut rng, &timer, LIMIT);
     println!("{}", a.result());
-    eprintln!("N:{} counter:{} score:{}", e.n, a.counter, a.score);
+    dbg!("N:{} counter:{}", e.n, a.counter);
+    dbg!("Score = {}", a.score);
 }
 
 #[derive(Debug, Clone, Default)]
@@ -54,11 +43,10 @@ impl Env {
         // 問題入力の設定
         self.n = n;
         // ハイパーパラメータの設定
-        let args = Args::new();
-        self.start_temp= args.get("start_temp").unwrap_or(START_TEMP);
-        let end_temp= args.get("end_temp").unwrap_or(END_TEMP);
+        self.start_temp= os_env::get("start_temp").unwrap_or(START_TEMP);
+        let end_temp= os_env::get("end_temp").unwrap_or(END_TEMP);
         self.duration_temp = end_temp - self.start_temp;
-        self.patience= args.get("patience").unwrap_or(PATIENCE);
+        self.patience= os_env::get("patience").unwrap_or(PATIENCE);
     }
 }
 
