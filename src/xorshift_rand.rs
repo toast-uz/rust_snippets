@@ -13,11 +13,16 @@ let random_range = rng.gen_range_multiple(0..10, 3); // 3個
 let random_uniform = rng.gen();             // [0, 1]のf64の一様乱数
 */
 #![allow(dead_code)]
-use std::time::Instant;
+use std::time::SystemTime;
 use rustc_hash::FxHashSet as HashSet;
+use crate::kyopro_stats::*;
 
 pub fn xorshift_rng() -> XorshiftRng {
-    XorshiftRng::from_seed(Instant::now().elapsed().as_nanos() as u64)
+    let seed = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap().as_secs() as u64;
+    let mut rng = XorshiftRng::from_seed(seed);
+    for _ in 0..100 { rng._xorshift(); }    // 初期値が偏らないようにウォーミングアップ
+    rng
 }
 pub struct XorshiftRng { seed: u64, }
 
@@ -75,6 +80,10 @@ impl XorshiftRng {
     pub fn gen(&mut self) -> f64 {
         self._xorshift();
         self.seed as f64 / u64::MAX as f64
+    }
+    // 正規分布に従う乱数を求める
+    pub fn gen_gaussian(&mut self, mu: f64, sigma: f64) -> f64 {
+        normal_distribution_inverse(self.gen(), mu, sigma)
     }
     // u64の乱数を求める
     pub fn gen_u64(&mut self) -> u64 {
