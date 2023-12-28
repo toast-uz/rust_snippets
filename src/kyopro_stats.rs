@@ -50,15 +50,15 @@ const SND_MEAN: [f64; DISCRETIZATION_SIZE + 1] = {
     res
 };
 
-// 標準正規分布の逆関数
+// 標準正規分布の逆関数(pとして0.0と1.0を許容する)
 fn standard_normal_distribution_inverse(p: f64) -> f64 {
     if p > 0.5 { return -standard_normal_distribution_inverse(1.0 - p); }
-    assert!(0.0 < p && p <= 0.5, "p must be in (0, 1)");
+    assert!(0.0 <= p && p <= 0.5, "p must be in (0, 1)");
     match SND.binary_search_by(|&x| p.partial_cmp(&x).unwrap()) {
         Ok(i) => i as f64 / RESOLUTION as f64,
         Err(i) => {
             if i == 0 { 0.0 }
-            else if i == DISCRETIZATION_SIZE { UPPER_BOUND }
+            else if i >= DISCRETIZATION_SIZE { UPPER_BOUND }
             else {
                 let l = (i - 1) as f64 / RESOLUTION as f64;
                 let r = i as f64 / RESOLUTION as f64;
