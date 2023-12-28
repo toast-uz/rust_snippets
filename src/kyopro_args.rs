@@ -22,9 +22,25 @@ impl Args {
     }
 }
 
+pub mod os_env {
+    const PREFIX: &str = "AHC_PARAMS_";
+
+    pub fn get<T: std::str::FromStr>(name: &str) -> Option<T> {
+        let name = format!("{}{}", PREFIX, name.to_uppercase());
+        let res = std::env::var(name).ok()?;
+        res.parse().ok()
+    }    
+}
+
 fn main() {
+    // コマンドライン引数の取得
     let args = Args::new();
     let x: usize = args.get::<usize>("x").unwrap();
     let y: f64 = args.get::<f64>("y").unwrap();
+    println!("x: {}, y: {}", x, y);
+
+    // 環境変数の取得
+    let x: usize = os_env::get::<usize>("x").unwrap();
+    let y: f64 = os_env::get::<f64>("y").unwrap();
     println!("x: {}, y: {}", x, y);
 }
