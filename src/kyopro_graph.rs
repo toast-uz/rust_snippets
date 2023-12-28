@@ -26,10 +26,10 @@ pub struct Map<T> {
 
 impl<T: Clone> Map<T> {
     pub fn new(coordinate_limit: &Coordinate) -> Self {
-        Self { n: coordinate_limit.norm(), coordinate_limit: coordinate_limit.clone(), data: Vec::new() }
+        Self { n: coordinate_limit.size(), coordinate_limit: coordinate_limit.clone(), data: Vec::new() }
     }
     pub fn new_with_fill(coordinate_limit: &Coordinate, fill: &T) -> Self {
-        let n = coordinate_limit.norm();
+        let n = coordinate_limit.size();
         Self { n, coordinate_limit: coordinate_limit.clone(), data: vec![fill.clone(); n] }
     }
 }
@@ -58,7 +58,7 @@ pub struct BitMap {
 
 impl BitMap {
     pub fn new(coordinate_limit: &Coordinate) -> Self {
-        let n = coordinate_limit.norm();
+        let n = coordinate_limit.size();
         Self { coordinate_limit: coordinate_limit.clone(), data: FixedBitSet::with_capacity(n) }
     }
 }
@@ -149,7 +149,7 @@ impl<T: Cell + VariantCount> ZobristHash for Map<T> {
     fn new_zobrist_hash_seed(&self) -> Map<Vec<u64>> {
         let mut rng = xorshift_rng();
         let mut res = Map::new(&self.coordinate_limit());
-        res.data = (0..self.coordinate_limit().norm())
+        res.data = (0..self.coordinate_limit().size())
             .map(|_| (0..T::VARIANT_COUNT).map(|_| rng.gen_u64()).collect_vec())
             .collect();
         res
@@ -235,11 +235,25 @@ pub enum Coordinate {
 }
 
 impl Coordinate {
-    pub fn norm(&self) -> usize {
+    pub fn size(&self) -> usize {   // 負数にも対応するため、isizeに変換してから計算する
         match self {
-            Self::D1(x) => *x,
-            Self::D2 { i, j } => *i * *j,
-            Self::D3 { x, y, z } => *x * *y * *z,
+            Self::D1(x) => (*x as isize).abs() as usize,
+            Self::D2 { i, j } => (*i as isize).abs() as usize * (*j as isize).abs() as usize,
+            Self::D3 { x, y, z } => (*x as isize).abs() as usize * (*y as isize).abs() as usize * (*z as isize).abs() as usize,
+        }
+    }
+    pub fn norm1(&self) -> usize {   // 負数にも対応するため、isizeに変換してから計算する
+        match self {
+            Self::D1(x) => (*x as isize).abs() as usize,
+            Self::D2 { i, j } => (*i as isize).abs() as usize + (*j as isize).abs() as usize,
+            Self::D3 { x, y, z } => (*x as isize).abs() as usize + (*y as isize).abs() as usize + (*z as isize).abs() as usize,
+        }
+    }
+    pub fn norm2(&self) -> usize {   // 負数にも対応するため、isizeに変換してから計算する
+        match self {
+            Self::D1(x) => (*x as isize).pow(2) as usize,
+            Self::D2 { i, j } => (*i as isize).pow(2) as usize + (*j as isize).pow(2) as usize,
+            Self::D3 { x, y, z } => (*x as isize).pow(2) as usize + (*y as isize).pow(2) as usize + (*z as isize).pow(2) as usize,
         }
     }
     pub fn elms(&self) -> Vec<usize> {
@@ -277,6 +291,10 @@ impl Coordinate {
             },
             _ => panic!("cannot convert different dimension coordinates"),
          }
+    }
+    pub fn iter(&self) -> CoordinateIter {
+        let len = self.size();
+        CoordinateIter { coordinate_limit: self.clone(), len, pos: 0 }
     }
 }
 
@@ -324,6 +342,32 @@ impl std::ops::Sub for Coordinate {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         self + rhs.invert()
+    }
+}
+
+// selfをcoordinate_limitとして、selfの範囲の座標を生成するイテレータ
+pub struct CoordinateIter {
+    coordinate_limit: Coordinate,
+    len: usize,
+    pos: usize,
+}
+
+impl Iterator for CoordinateIter {
+    type Item = Coordinate;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.len { return None; }
+        let res = self.pos;
+        self.pos += 1;
+        Some(self.coordinate_limit.p2c(res))
+    }
+}
+
+impl IntoIterator for Coordinate {
+    type Item = Coordinate;
+    type IntoIter = CoordinateIter;
+    fn into_iter(self) -> Self::IntoIter {
+        let len = self.size();
+        CoordinateIter { coordinate_limit: self, len, pos: 0 }
     }
 }
 
@@ -730,7 +774,7 @@ mod test {
         let start = coord!(0, 0);
         let adj = Adjacency::new_d2dir4();
         let res = dfs_template(&start, &map, &adj);
-        assert_eq!(res, coordinate_limit.norm() - 1);
+        assert_eq!(res, coordinate_limit.size() - 1);
     }
 
     #[test]
@@ -742,7 +786,7 @@ mod test {
         let start = coord!(0, 0);
         let adj = Adjacency::new_d2dir4();
         let res = dfs_recursive_template(&start, &map, &adj);
-        assert_eq!(res, coordinate_limit.norm() - 1);
+        assert_eq!(res, coordinate_limit.size() - 1);
     }
 
     #[test]
