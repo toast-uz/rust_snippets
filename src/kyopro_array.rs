@@ -13,6 +13,39 @@ const DEBUG: bool = false;
 
 macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
 
+// 置換計算
+
+pub struct SparsePermutation {
+    perm: Vec<(usize, usize)>,  // (from, to)
+}
+
+impl SparsePermutation {
+    pub fn new(perm: &[usize]) -> Self {
+        let perm = (0..perm.len())
+            .filter(|&i| i != perm[i])  // make sparse
+            .map(|i| (i, perm[i])).collect();
+        Self { perm }
+    }
+    pub fn apply(&self, x: &[usize]) -> Vec<usize> {
+        let mut res = x.to_vec();
+        for &(i, j) in &self.perm { res.swap(i, j); }
+        res
+    }
+    pub fn apply_inplace(&self, x: &mut [usize]) {
+        for &(i, j) in &self.perm { x.swap(i, j); }
+    }
+}
+
+trait WrongMetric {
+    fn wrong_metric(&self, other: &Self) -> usize;
+}
+
+impl<T: PartialEq> WrongMetric for [T] {
+    fn wrong_metric(&self, other: &Self) -> usize {
+        (0..self.len()).filter(|&i| self[i] != other[i]).count()
+    }
+}
+
 // 引数順序
 pub trait ArgPartialOrd<T> {
     fn argmax(&self) -> Option<usize>;
@@ -312,13 +345,13 @@ pub trait Statistics<T> {
     fn var(&self) -> T;
 }
 
-    impl Statistics<f64> for [f64] {
-        fn mean(&self) -> f64 { self.iter().sum::<f64>() / self.len() as f64 }
-        fn var(&self) -> f64 {
-            let mean = self.mean();
-            self.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / self.len() as f64
-        }
+impl Statistics<f64> for [f64] {
+    fn mean(&self) -> f64 { self.iter().sum::<f64>() / self.len() as f64 }
+    fn var(&self) -> f64 {
+        let mean = self.mean();
+        self.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / self.len() as f64
     }
+}
 
 
 ///////////////////////////////////////////////////////////
