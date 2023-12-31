@@ -267,6 +267,45 @@ impl<T: Clone + std::fmt::Debug> TSP<T> for Vec<T> {
     }
 }
 
+// Zobrist Hash
+
+pub trait VariantCount {
+    const VARIANT_COUNT: usize;
+    fn variant_id(&self) -> usize;
+}
+
+impl VariantCount for bool {
+    const VARIANT_COUNT: usize = 2;
+    fn variant_id(&self) -> usize { *self as usize }
+}
+
+pub trait ZobristHash {
+    fn new_zobrist_hash_seed(&self) -> Vec<u64>;
+    fn zobrist_hash(&self, seed: &[u64]) -> u64;
+    fn zobrist_hash_diff<T: VariantCount>(&self, i: usize, x: &T, seed: &[u64]) -> u64;
+}
+
+impl<T: VariantCount> ZobristHash for [T] {
+    fn new_zobrist_hash_seed(&self) -> Vec<u64> {
+        let mut rng = xorshift_rng();
+        (0..(self.len() * T::VARIANT_COUNT))
+            .map(|_| rng.gen_u64()).collect_vec()
+    }
+    fn zobrist_hash(&self, seed: &[u64]) -> u64 {
+        let mut res = 0;
+        for i in 0..self.len() {
+            res ^= seed[i + self[i].variant_id() * self.len()];
+        }
+        res
+    }
+    fn zobrist_hash_diff<S: VariantCount>(&self, i: usize, x: &S, seed: &[u64]) -> u64 {
+        let mut res = 0;
+        res ^= seed[i + self[i].variant_id() * self.len()];
+        res ^= seed[i + x.variant_id() * self.len()];
+        res
+    }
+}
+
 // 統計関数
 pub trait Statistics<T> {
     fn mean(&self) -> T;
@@ -344,6 +383,40 @@ mod tests {
         for _ in 0..500_000_000 {
             assert_eq!(hs[&0], 0);
             assert_eq!(hs[&999], 999);
+        }
+    }
+
+    #[test]
+    fn test_zobrist_hash() {
+        let mut x = vec![false; 1000];
+        let seed = x.new_zobrist_hash_seed();
+        let mut rng = xorshift_rng();
+        for _ in 0..1000 {
+            for i in 0..x.len() {
+                let b = match rng.gen_range(0..=1) {
+                    0 => false,
+                    1 => true,
+                    _ => unreachable!(),
+                };
+                x[i] = b;
+            }
+            let hash = x.zobrist_hash(&seed);
+            let i = rng.gen_range(0..x.len());
+            let b = match rng.gen_range(0..=1) {
+                0 => false,
+                1 => true,
+                _ => unreachable!(),
+            };
+            let hash_diff = x.zobrist_hash_diff(i, &b, &seed);
+            let same = x[i] == b;
+            x[i] = b;
+            let hash2 = x.zobrist_hash(&seed);
+            if same {
+                assert_eq!(hash, hash2);
+            } else {
+                assert_ne!(hash, hash2);
+            }
+            assert_eq!(hash ^ hash_diff, hash2);
         }
     }
 }

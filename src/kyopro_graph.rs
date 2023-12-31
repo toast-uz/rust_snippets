@@ -11,7 +11,6 @@ use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
 use fixedbitset::FixedBitSet;
 
 use crate::heapmap::*;
-use crate::xorshift_rand::*;
 
 const INF: usize = 1e18 as usize;
 
@@ -136,40 +135,6 @@ impl<T: Clone> std::ops::IndexMut<&Coordinate> for dyn MapOperation<T> {
     }
 }
 
-// Zobrist Hash
-
-pub trait ZobristHash {
-    fn new_zobrist_hash_seed(&self) -> Map<Vec<u64>>;
-    fn zobrist_hash(&self, seed: &Map<Vec<u64>>) -> u64;
-    fn zobrist_hash_diff<T>(&self, c: &Coordinate, x: &T, seed: &Map<Vec<u64>>)
-        -> u64 where T: Cell + VariantCount;
-}
-
-impl<T: Cell + VariantCount> ZobristHash for Map<T> {
-    fn new_zobrist_hash_seed(&self) -> Map<Vec<u64>> {
-        let mut rng = xorshift_rng();
-        let mut res = Map::new(&self.coordinate_limit());
-        res.data = (0..self.coordinate_limit().size())
-            .map(|_| (0..T::VARIANT_COUNT).map(|_| rng.gen_u64()).collect_vec())
-            .collect();
-        res
-    }
-    fn zobrist_hash(&self, seed: &Map<Vec<u64>>) -> u64 {
-        let mut res = 0;
-        for p in 0..self.len() {
-            res ^= seed[&seed.p2c(p)][self[&self.p2c(p)].variant_id()];
-        }
-        res
-    }
-    fn zobrist_hash_diff<S>(&self, c: &Coordinate, x: &S, seed: &Map<Vec<u64>>) -> u64
-            where S: Cell + VariantCount {
-        let mut res = 0;
-        res ^= seed[&c][self[&c].variant_id()];
-        res ^= seed[&c][x.variant_id()];
-        res
-    }
-}
-
 // Cell グラフの頂点の種類
 
 pub trait Cell: Clone {
@@ -193,30 +158,6 @@ impl Cell for DefaultCell {
     fn is_empty(&self) -> bool { *self == Self::Empty }
     fn is_obstacle(&self) -> bool { *self == Self::Obstacle }
 }
-
-// VariantCount trait for enum
-
-pub trait VariantCount {
-    const VARIANT_COUNT: usize;
-    fn variant_id(&self) -> usize;
-}
-
-impl VariantCount for bool {
-    const VARIANT_COUNT: usize = 2;
-    fn variant_id(&self) -> usize { *self as usize }
-}
-
-impl VariantCount for DefaultCell {
-    const VARIANT_COUNT: usize = 3;
-    fn variant_id(&self) -> usize {
-        match self {
-            Self::Empty => 0,
-            Self::Obstacle => 1,
-            Self::Other => 2,
-        }
-    }
-}
-
 
 // Coordinate 座標
 
@@ -725,6 +666,7 @@ impl<'a, T: Cell + 'static> LowLink<'a, T> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::xorshift_rand::*;
 
     #[test]
     fn basic_matrix2d() {
@@ -808,42 +750,6 @@ mod test {
             } else {
                 assert_eq!(res_len, 9, "{:?}", terminals);    // 最適解
             }
-        }
-    }
-
-    #[test]
-    fn test_zobrist_hash() {
-        let coordinate_limit = coord!(5, 5);
-        let mut map = Map::new_with_fill(&coordinate_limit, &DefaultCell::Empty);
-        let seed = map.new_zobrist_hash_seed();
-        let mut rng = xorshift_rng();
-        for _ in 0..1000 {
-            for p in 0..map.len() {
-                let c = map.p2c(p);
-                let x = match rng.gen_range(0..3) {
-                    0 => DefaultCell::Empty,
-                    1 => DefaultCell::Obstacle,
-                    _ => DefaultCell::Other,
-                };
-                map[&c] = x;
-            }
-            let hash = map.zobrist_hash(&seed);
-            let c = coord!(rng.gen_range(0..5), rng.gen_range(0..5));
-            let x = match rng.gen_range(0..3) {
-                0 => DefaultCell::Empty,
-                1 => DefaultCell::Obstacle,
-                _ => DefaultCell::Other,
-            };
-            let hash_diff = map.zobrist_hash_diff(&c, &x, &seed);
-            let same = map[&c] == x;
-            map[&c] = x;
-            let hash2 = map.zobrist_hash(&seed);
-            if same {
-                assert_eq!(hash, hash2);
-            } else {
-                assert_ne!(hash, hash2);
-            }
-            assert_eq!(hash ^ hash_diff, hash2);
         }
     }
 }
