@@ -53,7 +53,7 @@ impl SparsePermutation {
     }
 }
 
-trait WrongMetric {
+pub trait WrongMetric {
     fn wrong_metric(&self, other: &Self) -> usize;
 }
 
