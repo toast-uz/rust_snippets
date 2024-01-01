@@ -36,8 +36,8 @@ impl SparsePermutation {
     }
     pub fn apply_inplace(&self, x: &mut [usize], power: isize) {
         let sig = power.signum();
-        let power_abs = power.abs() as usize;
-        for _ in 0..power_abs {
+        let power_norm = power.abs() as usize;
+        for _ in 0..power_norm {
             if sig == 1 {
                 //　the elm of the index from is transfeerd by the elm of the index to
                 let elm_of_to = (0..self.len())
