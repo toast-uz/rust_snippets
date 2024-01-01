@@ -15,24 +15,34 @@ macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
 
 // 置換計算
 
+#[derive(Debug, Clone)]
 pub struct SparsePermutation {
-    perm: Vec<(usize, usize)>,  // (from, to)
+    from_to: Vec<(usize, usize)>,  // (from, to)
 }
 
 impl SparsePermutation {
+    pub fn len(&self) -> usize { self.from_to.len() }
     pub fn new(perm: &[usize]) -> Self {
-        let perm = (0..perm.len())
+        let from_to = (0..perm.len())
             .filter(|&i| i != perm[i])  // make sparse
             .map(|i| (i, perm[i])).collect();
-        Self { perm }
+        Self { from_to }
     }
-    pub fn apply(&self, x: &[usize]) -> Vec<usize> {
+    pub fn apply(&self, x: &[usize], inverse_flag: bool) -> Vec<usize> {
         let mut res = x.to_vec();
-        for &(i, j) in &self.perm { res.swap(i, j); }
+        self.apply_inplace(&mut res, inverse_flag);
         res
     }
-    pub fn apply_inplace(&self, x: &mut [usize]) {
-        for &(i, j) in &self.perm { x.swap(i, j); }
+    pub fn apply_inplace(&self, x: &mut [usize], inverse_flag: bool) {
+        if inverse_flag {
+            let cache = (0..self.len())
+                .map(|i| x[self.from_to[i].1]).collect::<Vec<_>>();
+            for i in 0..self.len() { x[self.from_to[i].0] = cache[i]; }
+        } else {
+            let cache = (0..self.len())
+                .map(|i| x[self.from_to[i].0]).collect::<Vec<_>>();
+            for i in 0..self.len() { x[self.from_to[i].1] = cache[i]; }
+        }
     }
 }
 
