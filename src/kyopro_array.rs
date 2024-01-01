@@ -17,7 +17,8 @@ macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
 
 #[derive(Debug, Clone)]
 pub struct SparsePermutation {
-    from_to: Vec<(usize, usize)>,  // (from, to)
+    // (from, to) : the elm of the index from is transfeerd by the elm of the index to
+    from_to: Vec<(usize, usize)>,
 }
 
 impl SparsePermutation {
@@ -28,20 +29,26 @@ impl SparsePermutation {
             .map(|i| (i, perm[i])).collect();
         Self { from_to }
     }
-    pub fn apply(&self, x: &[usize], inverse_flag: bool) -> Vec<usize> {
+    pub fn apply(&self, x: &[usize], power: isize) -> Vec<usize> {
         let mut res = x.to_vec();
-        self.apply_inplace(&mut res, inverse_flag);
+        self.apply_inplace(&mut res, power);
         res
     }
-    pub fn apply_inplace(&self, x: &mut [usize], inverse_flag: bool) {
-        if inverse_flag {
-            let cache = (0..self.len())
-                .map(|i| x[self.from_to[i].1]).collect::<Vec<_>>();
-            for i in 0..self.len() { x[self.from_to[i].0] = cache[i]; }
-        } else {
-            let cache = (0..self.len())
-                .map(|i| x[self.from_to[i].0]).collect::<Vec<_>>();
-            for i in 0..self.len() { x[self.from_to[i].1] = cache[i]; }
+    pub fn apply_inplace(&self, x: &mut [usize], power: isize) {
+        let sig = power.signum();
+        let power_abs = power.abs() as usize;
+        for _ in 0..power_abs {
+            if sig == 1 {
+                //　the elm of the index from is transfeerd by the elm of the index to
+                let elm_of_to = (0..self.len())
+                    .map(|i| x[self.from_to[i].1]).collect::<Vec<_>>();
+                for i in 0..self.len() { x[self.from_to[i].0] = elm_of_to[i]; }
+            } else {
+                // the elm of the index to is transfeerd by the elm of the index from
+                let elm_of_from = (0..self.len())
+                    .map(|i| x[self.from_to[i].0]).collect::<Vec<_>>();
+                for i in 0..self.len() { x[self.from_to[i].1] = elm_of_from[i]; }
+            }
         }
     }
 }
