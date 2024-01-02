@@ -15,9 +15,32 @@ macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
 
 // 置換計算
 
+/* SparsePermutation
+    Compatible with Python SymPy's Permutation.
+    Efficient for large permutations with sparse transpositions.
+
+    Example 1:
+    `Self::new(&[1, 2, 0])` represents the permutation (0, 1, 2) -> (1, 2, 0).
+    The item of element 0 is transferred to the item of element 1,
+    the item of element 1 is transferred to the item of element 2,
+    and the item of element 2 is transferred to the item of element 0.
+
+    let perm = SparsePermutation::new(&[1, 2, 0]);
+    let x = vec!["A", "B", "C"];    // able to use any type with Clone trait
+    assert_eq!(perm.apply(&x, 1), vec!["B", "C", "A"]);
+
+    Example 2:
+    The power parameter is used to repeat the permutation multiple times.
+    (A negative power is used to apply the inverse permutation.)
+    let perm = SparsePermutation::new(&[1, 2, 0]);
+    let x = vec!["A", "B", "C"];    // able to use any type with Clone trait
+    assert_eq!(perm.apply(&x, 2), vec!["C", "A", "B"]);
+    assert_eq!(perm.apply(&x, -1), vec!["C", "A", "B"]);
+*/
+
 #[derive(Debug, Clone)]
 pub struct SparsePermutation {
-    // (from, to) : the elm of the index from is transfeerd by the elm of the index to
+    // (from, to) : the elm of the index from is transfeerd to the elm of the index to
     from_to: Vec<(usize, usize)>,
 }
 
@@ -29,29 +52,33 @@ impl SparsePermutation {
             .map(|i| (i, perm[i])).collect();
         Self { from_to }
     }
-    pub fn apply(&self, x: &[usize], power: isize) -> Vec<usize> {
+    // apply the permutation to the vector x
+    pub fn apply<T: Clone>(&self, x: &[T], power: isize) -> Vec<T> {
         let mut res = x.to_vec();
         self.apply_inplace(&mut res, power);
         res
     }
-    pub fn apply_inplace(&self, x: &mut [usize], power: isize) {
+    // apply the permutation to the vector x in place
+    pub fn apply_inplace<T: Clone>(&self, x: &mut [T], power: isize) {
         let sig = power.signum();
         let power_norm = power.abs() as usize;
         for _ in 0..power_norm {
             if sig == 1 {
-                //　the elm of the index from is transfeerd by the elm of the index to
+                //　the elm of the index from is transfeerd to the elm of the index to
                 let elm_of_to = (0..self.len())
-                    .map(|i| x[self.from_to[i].1]).collect::<Vec<_>>();
-                for i in 0..self.len() { x[self.from_to[i].0] = elm_of_to[i]; }
+                    .map(|i| x[self.from_to[i].1].clone()).collect::<Vec<_>>();
+                for i in 0..self.len() { x[self.from_to[i].0] = elm_of_to[i].clone(); }
             } else {
-                // the elm of the index to is transfeerd by the elm of the index from
+                // the elm of the index to is transfeerd to the elm of the index from
                 let elm_of_from = (0..self.len())
-                    .map(|i| x[self.from_to[i].0]).collect::<Vec<_>>();
-                for i in 0..self.len() { x[self.from_to[i].1] = elm_of_from[i]; }
+                    .map(|i| x[self.from_to[i].0].clone()).collect::<Vec<_>>();
+                for i in 0..self.len() { x[self.from_to[i].1] = elm_of_from[i].clone(); }
             }
         }
     }
 }
+
+// Trait for measuring dissimilarity between two instances.
 
 pub trait WrongMetric {
     fn wrong_metric(&self, other: &Self) -> usize;
@@ -62,6 +89,7 @@ impl<T: PartialEq> WrongMetric for [T] {
         (0..self.len()).filter(|&i| self[i] != other[i]).count()
     }
 }
+
 
 // 引数順序
 pub trait ArgPartialOrd<T> {
