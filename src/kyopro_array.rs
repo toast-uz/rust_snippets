@@ -15,68 +15,71 @@ macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
 
 // 置換計算
 
-/* SparsePermutation
+/* Permutation
     Compatible with Python SymPy's Permutation.
-    Efficient for large permutations with sparse transpositions.
 
     Example 1:
     `Self::new(&[1, 2, 0])` represents the permutation (0, 1, 2) -> (1, 2, 0).
-    The item of element 0 is transferred to the item of element 1,
-    the item of element 1 is transferred to the item of element 2,
-    and the item of element 2 is transferred to the item of element 0.
+    maps 0 -> 1, 1 -> 2, 2 -> 0.
+    where the object at index 1 is moved to index 0, 
+          the object at index 2 is moved to index 1,
+          and the object at index 0 is moved to index 2.
 
-    let perm = SparsePermutation::new(&[1, 2, 0]);
+    let perm = Permutation::new(&[1, 2, 0]);
     let x = vec!["A", "B", "C"];    // able to use any type with Clone trait
-    assert_eq!(perm.apply(&x, 1), vec!["B", "C", "A"]);
+    assert_eq!(perm.apply(&x), vec!["B", "C", "A"]);
 
     Example 2:
-    The power parameter is used to repeat the permutation multiple times.
+    The power operator can be used to apply the permutation multiple times.
     (A negative power is used to apply the inverse permutation.)
-    let perm = SparsePermutation::new(&[1, 2, 0]);
+    let perm = Permutation::new(&[1, 2, 0]);
     let x = vec!["A", "B", "C"];    // able to use any type with Clone trait
-    assert_eq!(perm.apply(&x, 2), vec!["C", "A", "B"]);
-    assert_eq!(perm.apply(&x, -1), vec!["C", "A", "B"]);
+    assert_eq!(perm.pow(2).apply(&x), vec!["C", "A", "B"]);
+    assert_eq!(perm.pow(-1).apply(&x), vec!["C", "A", "B"]);
 */
 
-#[derive(Debug, Clone)]
-pub struct SparsePermutation {
-    // (from, to) : the elm of the index from is transfeerd to the elm of the index to
-    from_to: Vec<(usize, usize)>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Permutation {
+    perm: Vec<usize>,
 }
 
-impl SparsePermutation {
-    pub fn len(&self) -> usize { self.from_to.len() }
-    pub fn new(perm: &[usize]) -> Self {
-        let from_to = (0..perm.len())
-            .filter(|&i| i != perm[i])  // make sparse
-            .map(|i| (i, perm[i])).collect();
-        Self { from_to }
+impl Permutation {
+    pub fn len(&self) -> usize { self.perm.len() }
+    pub fn new(perm: &[usize]) -> Self { Self { perm: perm.to_vec() } }
+    pub fn inv(&self) -> Self {
+        let mut res = vec![0; self.len()];
+        for i in 0..self.len() { res[self.perm[i]] = i; }
+        Self::new(&res)
     }
-    // apply the permutation to the vector x
-    pub fn apply<T: Clone>(&self, x: &[T], power: isize) -> Vec<T> {
-        let mut res = x.to_vec();
-        self.apply_inplace(&mut res, power);
+    pub fn pow(&self, power: isize) -> Self {
+        let mut res = Self::new(&(0..self.len()).collect::<Vec<_>>());
+        if power > 0 {
+            for _ in 0..power { res *= self.clone(); }
+        } else if power < 0 {
+            let inv = self.inv();
+            for _ in 0..(-power) { res *= inv.clone(); }
+        }
         res
     }
-    // apply the permutation to the vector x in place
-    pub fn apply_inplace<T: Clone>(&self, x: &mut [T], power: isize) {
-        let sig = power.signum();
-        let power_norm = power.abs() as usize;
-        for _ in 0..power_norm {
-            if sig == 1 {
-                //　the elm of the index from is transfeerd to the elm of the index to
-                let elm_of_to = (0..self.len())
-                    .map(|i| x[self.from_to[i].1].clone()).collect::<Vec<_>>();
-                for i in 0..self.len() { x[self.from_to[i].0] = elm_of_to[i].clone(); }
-            } else {
-                // the elm of the index to is transfeerd to the elm of the index from
-                let elm_of_from = (0..self.len())
-                    .map(|i| x[self.from_to[i].0].clone()).collect::<Vec<_>>();
-                for i in 0..self.len() { x[self.from_to[i].1] = elm_of_from[i].clone(); }
-            }
-        }
+    // apply the permutation to the vector x
+    pub fn apply<T: Clone>(&self, x: &[T]) -> Vec<T> {
+        let mut res = vec![x[0].clone(); self.len()];
+        for i in 0..self.len() { res[i] = x[self.perm[i]].clone(); }
+        res
     }
 }
+
+impl std::ops::Mul for Permutation {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self {
+        Self::new(&(0..self.len())
+            .map(|i| rhs.perm[self.perm[i]]).collect::<Vec<_>>())
+    }
+}
+impl std::ops::MulAssign for Permutation {
+    fn mul_assign(&mut self, rhs: Self) { *self = self.clone() * rhs; }
+}
+
 
 // Trait for measuring dissimilarity between two instances.
 
@@ -496,5 +499,14 @@ mod tests {
             }
             assert_eq!(hash ^ hash_diff, hash2);
         }
+    }
+
+    #[test]
+    fn test_permutation() {
+        let perm = Permutation::new(&[1, 2, 3, 0]);
+        let x = vec!["Apple", "Banana", "Cherry", "Durian"];
+        assert_eq!(perm.apply(&x), vec!["Banana", "Cherry", "Durian", "Apple"]);
+        assert_eq!(perm.pow(2).apply(&x), vec!["Cherry", "Durian", "Apple", "Banana"]);
+        assert_eq!(perm.pow(-1).apply(&x), vec!["Durian", "Apple", "Banana", "Cherry"]);
     }
 }
