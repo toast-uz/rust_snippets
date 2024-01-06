@@ -40,19 +40,37 @@ macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Permutation {
-    perm: Vec<usize>,
+    maps: Vec<(usize, usize)>,  // permutaion maps from_to ( sorted by from )
 }
 
 impl Permutation {
-    pub fn len(&self) -> usize { self.perm.len() }
-    pub fn new(perm: &[usize]) -> Self { Self { perm: perm.to_vec() } }
-    pub fn inv(&self) -> Self {
-        let mut res = vec![0; self.len()];
-        for i in 0..self.len() { res[self.perm[i]] = i; }
-        Self::new(&res)
+    pub fn new(perm: &[usize]) -> Self {
+        // 全ての要素が異なることをチェック
+        assert!(perm.iter().enumerate().all(|(i, &x)|
+            perm.iter().enumerate().all(|(j, &y)| i == j || x != y)));
+        Self {
+            maps: perm.iter().enumerate()
+                .map(|(i, &j)| (i, j))
+                .filter(|(i, j)| i != j).collect()
+        }
     }
+    // 単位置換
+    pub fn identity() -> Self { Self::new(&[]) }
+    // リスト形式への変換
+    pub fn to_list(&self, len: usize) -> Vec<usize> {
+        let mut res = (0..len).collect::<Vec<_>>();
+        for &(i, j) in &self.maps { res[i] = j; }
+        res
+    }
+    // 想定している置換対象の配列の長さ（の最小値）
+    pub fn size(&self) -> usize {
+        self.maps.iter().map(|&(i, j)| i.max(j)).max().unwrap_or(0) + 1
+    }
+    pub fn inv(&self) -> Self { {
+        Self { maps: self.maps.iter().map(|&(i, j)| (j, i)).sorted().collect() }
+    } }
     pub fn pow(&self, power: isize) -> Self {
-        let mut res = Self::new(&(0..self.len()).collect::<Vec<_>>());
+        let mut res = Self::identity();
         if power > 0 {
             for _ in 0..power { res *= self.clone(); }
         } else if power < 0 {
@@ -63,35 +81,43 @@ impl Permutation {
     }
     // apply the permutation to the vector x
     pub fn apply<T: Clone>(&self, x: &[T]) -> Vec<T> {
-        let mut res = vec![x[0].clone(); self.len()];
-        for i in 0..self.len() { res[i] = x[self.perm[i]].clone(); }
+        let mut res = x.to_vec();
+        for &(i, j) in &self.maps { res[i] = x[j].clone(); }
         res
+    }
+    // apply the permutation to the vector x sparsely
+    pub fn apply_sparse<T: Clone>(&self, x: &[T]) -> PermutatonSparseResut<T> {
+        PermutatonSparseResut { val: self.maps.iter()
+            .map(|&(i, j)| (i, x[j].clone())).collect() }
     }
 }
 
 impl std::ops::Mul for Permutation {
     type Output = Self;
+    // 合成写像
     fn mul(self, rhs: Self) -> Self {
-        Self::new(&(0..self.len())
-            .map(|i| rhs.perm[self.perm[i]]).collect::<Vec<_>>())
+        let len = self.size().max(rhs.size());
+        let perm1 = self.to_list(len);
+        let perm2 = rhs.to_list(len);
+        let x = (0..len).map(|i| perm2[perm1[i]]).collect::<Vec<_>>();
+        Self::new(&x)
     }
 }
 impl std::ops::MulAssign for Permutation {
     fn mul_assign(&mut self, rhs: Self) { *self = self.clone() * rhs; }
 }
 
-
-// Trait for measuring dissimilarity between two instances.
-
-pub trait WrongMetric {
-    fn wrong_metric(&self, other: &Self) -> usize;
+#[derive(Debug, Clone)]
+pub struct PermutatonSparseResut<T> {
+    val: Vec<(usize, T)>,   // permutaion result as (index, value)
 }
 
-impl<T: PartialEq> WrongMetric for [T] {
-    fn wrong_metric(&self, other: &Self) -> usize {
-        (0..self.len()).filter(|&i| self[i] != other[i]).count()
+impl<T: Clone> PermutatonSparseResut<T> {
+    pub fn apply_inplace(&self, x: &mut [T]) {
+        for &(i, ref v) in &self.val { x[i] = v.clone(); }
     }
 }
+
 
 
 // 引数順序
@@ -504,9 +530,29 @@ mod tests {
     #[test]
     fn test_permutation() {
         let perm = Permutation::new(&[1, 2, 3, 0]);
+        println!("perm: {:?}", perm.pow(2));
+        println!("perm.pow(2): {:?}", perm.pow(2));
+        assert_eq!(perm.pow(2), Permutation::new(&[2, 3, 0, 1]));
+        println!("perm.inv()): {:?}", perm.pow(2));
+        assert_eq!(perm.inv(), Permutation::new(&[3, 0, 1, 2]));
         let x = vec!["Apple", "Banana", "Cherry", "Durian"];
         assert_eq!(perm.apply(&x), vec!["Banana", "Cherry", "Durian", "Apple"]);
         assert_eq!(perm.pow(2).apply(&x), vec!["Cherry", "Durian", "Apple", "Banana"]);
         assert_eq!(perm.pow(-1).apply(&x), vec!["Durian", "Apple", "Banana", "Cherry"]);
+        assert_eq!(perm.clone() * perm.clone(), perm.pow(2));
+        assert_eq!(perm.clone() * perm.clone() * perm.clone(), perm.inv());
+
+        let mut y = x.clone();
+        let sparse_result1 = perm.apply_sparse(&y);
+        sparse_result1.apply_inplace(&mut y);
+        assert_eq!(y, vec!["Banana", "Cherry", "Durian", "Apple"]);
+        let mut y = x.clone();
+        let sparse_result2 = perm.pow(2).apply_sparse(&y);
+        sparse_result2.apply_inplace(&mut y);
+        assert_eq!(y, vec!["Cherry", "Durian", "Apple", "Banana"]);
+        let mut y = x.clone();
+        let sparse_result3 = perm.pow(-1).apply_sparse(&y);
+        sparse_result3.apply_inplace(&mut y);
+        assert_eq!(y, vec!["Durian", "Apple", "Banana", "Cherry"]);
     }
 }
