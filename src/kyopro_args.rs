@@ -28,7 +28,7 @@ pub mod os_env {
     pub fn get<T: std::str::FromStr>(name: &str) -> Option<T> {
         let name = format!("{}{}", PREFIX, name.to_uppercase());
         std::env::var(name).ok()?.parse().ok()
-    }    
+    }
 }
 
 fn main() {
