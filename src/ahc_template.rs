@@ -131,8 +131,9 @@ impl Agent {
     // 1) cloneしたnew_stateを遷移させて、フル計算する
     // 2) selfを遷移させて、フル計算し、その後、selfを逆遷移させる
     // 3) 差分計算をする
+    // 3)の場合は、1)のコードを最初は残して、結果を照合する
     fn compute_score_diff(&mut self, e: &Env, neighbor: Neighbor) -> isize {
-        // 差分計算をしない場合の実装
+        // 1) 差分計算をしない場合の実装
         let score_old = self.score;
         let mut new_state = self.clone();
         new_state.transfer_neighbor(e, neighbor);
