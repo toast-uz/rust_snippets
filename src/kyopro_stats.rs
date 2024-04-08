@@ -127,4 +127,9 @@ mod test {
                 "p:{p} mu:{mu} sigma:{sigma} res:{res} != ans:{ans}");
         }
     }
+    #[test]
+    fn test_enum_snd_mean() {
+        println!("{:?}", super::SND_MEAN);
+        assert!(false);
+    }
 }
