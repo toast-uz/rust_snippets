@@ -21,7 +21,7 @@ macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
     Example 1:
     `Self::new(&[1, 2, 0])` represents the permutation (0, 1, 2) -> (1, 2, 0).
     maps 0 -> 1, 1 -> 2, 2 -> 0.
-    where the object at index 1 is moved to index 0, 
+    where the object at index 1 is moved to index 0,
           the object at index 2 is moved to index 1,
           and the object at index 0 is moved to index 2.
 
@@ -36,6 +36,8 @@ macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
     let x = vec!["A", "B", "C"];    // able to use any type with Clone trait
     assert_eq!(perm.pow(2).apply(&x), vec!["C", "A", "B"]);
     assert_eq!(perm.pow(-1).apply(&x), vec!["C", "A", "B"]);
+
+    リスト形式、本形式、互換形式 それぞれにおいて、疎なら本形式がもっとも高速である。
 */
 
 #[derive(Debug, Clone, PartialEq, Eq)]
