@@ -72,5 +72,5 @@ rustc-hash = "=1.1.0"
 [dev-dependencies]
 
 [[bin]]
-name = "ahc_template"
-path = "src/ahc_template.rs"
+name = "ahc_template_sa"
+path = "src/ahc_template_sa.rs"
