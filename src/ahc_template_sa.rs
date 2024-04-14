@@ -1,5 +1,24 @@
+/*
+
+焼きなまし法のテンプレート
+
+使い方
+1) 最初の入力、ハイパーパラメータをもとに、イミュータブルなEnvを作成
+2) 出力を作るAgentについて、initを初期解として作成
+3) resultで出力を作成 → 初期解の提出
+4) compute_scoreでスコアを計算 → ローカルテストツールのスコアと照合
+5) 近傍を設計、select_neighborで近傍を選択、transfer_neighborで遷移
+6) optimizeで最適化を行ってみて、スコアが改善するか確認
+   （スコアが高い方が良いか、低い方が良いかで、実装を変更）
+7) 制限時間を増やしてみて、さらにスコアが改善するか確認（→ 差分計算する必要性）
+8) score_diffでスコアの差分計算を実装、最初はフル計算と照合
+9) フル計算との照合をやめて、差分計算のみでカウンターとスコアが改善するか確認
+10) 近傍を増やしてみて試行錯誤
+11) ハイパーパラメータをチューニング
+
+*/
 use std::time::Instant;
-use proconio::input_interactive;
+use proconio::input;
 //use itertools::{iproduct, Itertools};
 //use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
 //use rust_snippets::xorshift_rand::*;
@@ -7,7 +26,7 @@ use proconio::input_interactive;
 use xorshift_rand::*;
 use kyopro_args::*;
 
-const LIMIT: f64 = 0.5;
+const LIMIT: f64 = 0.0;
 const DEBUG: bool = true;
 const START_TEMP: f64 = 1e9;
 const END_TEMP: f64 = 1e-9;
@@ -36,11 +55,12 @@ struct Env {
 
 impl Env {
     fn new() -> Self {
-        input_interactive! { n: usize }
+        input! { n: usize }
         let mut e = Self::default();
         e.init(n); e
     }
 
+    // テストが作りやすいように、newとinitを分離
     fn init(&mut self, n: usize) {
         // 問題入力の設定
         self.n = n;
