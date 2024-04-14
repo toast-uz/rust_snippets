@@ -1,10 +1,11 @@
 /*
 
-焼きなまし法のテンプレート
+焼きなまし法（Simulated Annealing）のテンプレート
 
 使い方
 1) 最初の入力、ハイパーパラメータをもとに、イミュータブルなEnvを作成
 2) 出力を作るAgentについて、initを初期解として作成
+   一般的に、よく焼ける問題は、初期解が自明解でも十分であることが多い
 3) resultで出力を作成 → 初期解の提出
 4) compute_scoreでスコアを計算 → ローカルテストツールのスコアと照合
 5) 近傍を設計、select_neighborで近傍を選択、transfer_neighborで遷移
@@ -42,7 +43,7 @@ fn main() {
     a.optimize(&e, &mut rng, &timer, LIMIT);
     println!("{}", a.result());
     dbg!("N:{} counter:{}", e.n, a.counter);
-    dbg!("Score = {}", a.score);
+    dbg!("Computed_score = {}", a.score);
 }
 
 #[derive(Debug, Clone, Default)]
