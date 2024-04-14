@@ -39,7 +39,6 @@ pub mod norm {
     // Normal Probability Density Function
     pub fn pdf(z: f64, mu: f64, sigma: f64) -> f64 {
         let x = z.normalized(mu, sigma).to_index_range();
-        println!("{:?}", x);
         (STANDARD_CDF[x.0] - STANDARD_CDF[x.1]) * RESOLUTION as f64 / (x.1 - x.0) as f64
     }
 
