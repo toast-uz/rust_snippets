@@ -29,9 +29,10 @@ use kyopro_args::*;
 
 const LIMIT: f64 = 0.0;
 const DEBUG: bool = true;
-const START_TEMP: f64 = 1e9;
-const END_TEMP: f64 = 1e-9;
-const PATIENCE: usize = 100;
+const SA_START_TEMP: f64 = 1e9;
+const SA_END_TEMP: f64 = 1e-9;
+const SA_PATIENCE: usize = 100;
+const SA_TIMER_RESOLUTION: usize = 10;
 
 macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
 
@@ -49,9 +50,10 @@ fn main() {
 #[derive(Debug, Clone, Default)]
 struct Env {
     n: usize,
-    start_temp: f64,
-    duration_temp: f64,
-    patience: usize,
+    sa_start_temp: f64,
+    sa_duration_temp: f64,
+    sa_patience: usize,
+    sa_timer_resolution: usize,
 }
 
 impl Env {
@@ -66,10 +68,11 @@ impl Env {
         // 問題入力の設定
         self.n = n;
         // ハイパーパラメータの設定
-        self.start_temp= os_env::get("start_temp").unwrap_or(START_TEMP);
-        let end_temp= os_env::get("end_temp").unwrap_or(END_TEMP);
-        self.duration_temp = end_temp - self.start_temp;
-        self.patience= os_env::get("patience").unwrap_or(PATIENCE);
+        self.sa_start_temp = os_env::get("sa_start_temp").unwrap_or(SA_START_TEMP);
+        let sa_end_temp = os_env::get("sa_end_temp").unwrap_or(SA_END_TEMP);
+        self.sa_duration_temp = sa_end_temp - self.sa_start_temp;
+        self.sa_patience = os_env::get("sa_patience").unwrap_or(SA_PATIENCE);
+        self.sa_timer_resolution = os_env::get("sa_timer_resolution").unwrap_or(SA_TIMER_RESOLUTION);
     }
 }
 
@@ -91,13 +94,18 @@ impl Agent {
 
     fn optimize(&mut self, e: &Env, rng: &mut XorshiftRng, timer: &Instant, limit: f64) {
         let start_time = timer.elapsed().as_secs_f64();
-        let mut time = start_time;
         let mut best = self.clone();
-        let mut temp;
-        while time < limit {
+        let mut temp = e.sa_start_temp;
+        loop {
+            // 現在の温度を計算（少し重いので計算は sa_timer_resolution 間隔で行う）
+            if self.counter % e.sa_timer_resolution == 0 {
+                let time = timer.elapsed().as_secs_f64();
+                if time >= limit { break; }
+                temp = e.sa_start_temp + e.sa_duration_temp * (time - start_time) / (limit - start_time);
+            }
             self.counter += 1;
             // PATIENCE回、ベスト更新されなかったら，現在のカウンターをベストにコピーして、ベストから再開する
-            if self.counter > best.counter + e.patience {
+            if self.counter > best.counter + e.sa_patience {
                 best.counter = self.counter;
                 *self = best.clone();
                 dbg!("counter:{} score:{} restart from the best", self.counter, self.score);
@@ -105,12 +113,9 @@ impl Agent {
             // 遷移候補を決めて、遷移した場合のコスト差分を計算する
             let neighbor = self.select_neighbor(e, rng);
             let score_diff = self.compute_score_diff(e, neighbor);
-            // 現在の温度を計算して遷移確率を求める
-            time = timer.elapsed().as_secs_f64();
-            temp = e.start_temp + e.duration_temp * (time - start_time) / (limit - start_time);
-            let prob = (score_diff as f64 / temp).exp();
             // スコアが高いほど良い場合
             // スコアが低いほど良い場合はprob < rng.gen()とする
+            let prob = (score_diff as f64 / temp).exp();
             if prob > rng.gen() || neighbor.forced() { // 確率prob or 強制近傍か で遷移する
                 self.transfer_neighbor(e, neighbor);
                 self.score += score_diff;
