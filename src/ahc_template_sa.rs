@@ -228,6 +228,7 @@ mod xorshift_rand {
         // [low, high) の範囲のusizeの乱数を求める
         pub fn gen_range<R: std::ops::RangeBounds<usize>>(&mut self, range: R) -> usize {
             let (start, end) = Self::unsafe_decode_range_(&range);
+            assert!(start < end);
             self._xorshift();
             (start as u64 + self.seed % (end - start) as u64) as usize
         }
