@@ -34,7 +34,13 @@ const SA_END_TEMP: f64 = 1e-9;
 const SA_PATIENCE: usize = 100;
 const SA_TIMER_RESOLUTION: usize = 10;
 
+#[allow(unused_macros)]
 macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
+#[allow(unused_macros)]
+macro_rules! dbg2 {( $( $x:expr ),* ) => ( if DEBUG {
+    eprintln!($( $x ),* );
+    println!("## {}", format!($( $x ),* ));
+}) }
 
 fn main() {
     let timer = Instant::now();
