@@ -56,7 +56,7 @@ impl<T: PrimNumNeg> Point<T>{
     pub fn clamp(&self, min_v: f64, max_v: f64) -> Point<f64> {
         assert!(min_v <= max_v && min_v >= 0.0);
         let abs = self.abs();
-        assert_ne!(abs, 0.0);
+        if abs == 0.0 { return Point::zero(); }
         let norm = abs.clamp(min_v, max_v);
         self.as_f64().set_abs(norm)
     }
