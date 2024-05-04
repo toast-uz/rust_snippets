@@ -4,13 +4,35 @@ use std::ops::*;
 use std::fmt::Display;
 
 pub trait PrimNumNeg:
-    Default + Copy + PartialEq + PartialOrd
+    Default + Copy + std::fmt::Debug
+    + PartialEq + PartialOrd
     + Add<Output = Self> + Sub<Output = Self>
     + Mul<Output = Self> + Div<Output = Self>
-    + Neg<Output = Self> {}
-
-macro_rules! impl_primnum_neg { ($($ty:ty),*) => { $(impl PrimNumNeg for $ty {})* };}
-impl_primnum_neg!(isize, i32, i64, f32, f64);
+    + Neg<Output = Self>
+{
+    fn zero() -> Self;
+    fn one() -> Self;
+    fn as_f64(&self) -> f64;
+    fn as_isize(&self) -> isize;
+}
+macro_rules! impl_primnum_int { ($($ty:ty),*) => {$(
+    impl PrimNumNeg for $ty {
+        fn zero() -> Self { 0 }
+        fn one() -> Self { 1 }
+        fn as_f64(&self) -> f64 { *self as f64 }
+        fn as_isize(&self) -> isize { *self as isize }
+    }
+)*};}
+macro_rules! impl_primnum_float { ($($ty:ty),*) => {$(
+    impl PrimNumNeg for $ty {
+        fn zero() -> Self { 0.0 }
+        fn one() -> Self { 1.0 }
+        fn as_f64(&self) -> f64 { *self as f64 }
+        fn as_isize(&self) -> isize { *self as isize }
+    }
+)*};}
+impl_primnum_int!(isize, i32, i64);
+impl_primnum_float!(f32, f64);
 
 type FracPoint<T> = (Point<T>, T);
 
@@ -21,7 +43,32 @@ impl<T: PrimNumNeg> Point<T>{
     pub fn zero() -> Self { Self::default() }
     pub fn new((i, j): (T, T)) -> Self { Self (i, j) }
     pub fn abs2(&self) -> T { self.0 * self.0 + self.1 * self.1 }
+    pub fn as_isize(&self) -> Point<isize> { Point::<isize>::new((self.0.as_isize(), self.1.as_isize())) }
+    pub fn as_f64(&self) -> Point<f64> { Point::new((self.0.as_f64(), self.1.as_f64())) }
+    pub fn abs(&self) -> f64 { self.abs2().as_f64().sqrt() }
+    pub fn set_abs(&self, norm: f64) -> Point<f64> {
+        let abs_org = self.abs();
+        assert_ne!(abs_org, 0.0);
+        self.as_f64() * norm / abs_org
+    }
+    pub fn normalized(&self) -> Point<f64> { self.set_abs(1.0) }
+    // 範囲正規化したベクトルを返す
+    pub fn clamp(&self, min_v: f64, max_v: f64) -> Point<f64> {
+        assert!(min_v <= max_v && min_v >= 0.0);
+        let abs = self.abs();
+        assert_ne!(abs, 0.0);
+        let norm = abs.clamp(min_v, max_v);
+        self.as_f64().set_abs(norm)
+    }
+    pub fn cos(&self, rhs: Self) -> f64 {
+        let abs1 = self.abs();
+        let abs2 = rhs.abs();
+        assert_ne!(abs1, 0.0);
+        assert_ne!(abs2, 0.0);
+        self.dot(rhs).as_f64() / (abs1 * abs2)
+    }
     pub fn dist2(&self, rhs: Self) -> T { (*self - rhs).abs2() }
+    pub fn dist(&self, rhs: Self) -> f64 { self.dist2(rhs).as_f64().sqrt() }
     pub fn dot(&self, rhs: Self) -> T { self.0 * rhs.0 + self.1 * rhs.1 }
     pub fn det(&self, rhs: Self) -> T { self.0 * rhs.1 - self.1 * rhs.0 }
     pub fn is_parallel(&self, rhs: Self) -> bool { self.det(rhs) == T::default() }
@@ -60,6 +107,12 @@ impl<T: PrimNumNeg> Point<T>{
         }
         res
     }
+    pub fn dist_line(&self, line: &Line<T>) -> f64 {
+        self.dist2_line(line).as_f64().sqrt()
+    }
+    pub fn dist_segment(&self, seg: &Segment<T>) -> f64 {
+        self.dist2_segment(seg).as_f64().sqrt()
+    }
 }
 
 impl<T: Add<Output = T>> Add for Point<T> {
@@ -92,43 +145,11 @@ impl<T: Display> std::fmt::Display for Point<T> {
     }
 }
 
-impl Point<isize> {
-    pub fn as_f64(&self) -> Point<f64> {
-        Point::new((self.0 as f64, self.1 as f64))
-    }
-}
-
 impl Point<f64> {
-    // 範囲正規化したベクトルを返す
-    pub fn clamp(&self, min_v: f64, max_v: f64) -> Self {
-        assert!(min_v <= max_v && min_v >= 0.0);
-        let norm = self.abs();
-        let mul = if norm == 0.0 { 1.0 }
-        else if norm < min_v as f64 { min_v.min(max_v) / norm
-        } else if norm > max_v as f64 {
-            (max_v / norm).max(min_v / norm)
-        }
-        else { 1.0 };
-        self.mul(mul)
-    }
-    pub fn abs(&self) -> f64 { self.abs2().sqrt() }
-    pub fn set_abs(&self, norm: f64) -> Self {
-        let norm_org = self.abs();
-        Point::new((self.0 * norm / norm_org, self.1 * norm / norm_org))
-    }
-    pub fn dist(&self, rhs: Self) -> f64 { (*self - rhs).abs() }
-    pub fn cos(&self, rhs: Self) -> f64 { self.dot(rhs) / (self.abs() * rhs.abs()) }
     pub fn round(&self) -> Self { Self (self.0.round(), self.1.round()) }
     pub fn floor(&self) -> Self { Self (self.0.floor(), self.1.floor()) }
     pub fn ceil(&self) -> Self { Self (self.0.ceil(), self.1.ceil()) }
     pub fn trunc(&self) -> Self { Self (self.0.trunc(), self.1.trunc()) }   // floor_abs
-    pub fn as_isize(&self) -> Point<isize> { Point::<isize>::new((self.0 as isize, self.1 as isize)) }
-    pub fn dist_line(&self, line: &Line<f64>) -> f64 {
-        self.dist2_line(line).sqrt()
-    }
-    pub fn dist_segment(&self, segment: &Segment<f64>) -> f64 {
-        self.dist2_segment(segment).sqrt()
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -140,6 +161,8 @@ impl<T: PrimNumNeg> Segment<T> {
     pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
     pub fn to_vector(&self) -> Point<T> { self.q - self.p }
     pub fn abs2(&self) -> T { self.to_vector().abs2() }
+    pub fn as_f64(&self) -> Segment<f64> { Segment::new((self.p.as_f64(), self.q.as_f64())) }
+    pub fn as_isize(&self) -> Segment<isize> { Segment::new((self.p.as_isize(), self.q.as_isize())) }
     pub fn contains(&self, p: Point<T>) -> bool {
         (p - self.p).is_parallel(self.q - self.p) && (p - self.p).dot(p - self.q) <= T::default()
     }
@@ -189,26 +212,13 @@ impl<T: PrimNumNeg> Segment<T> {
             rhs.p.dist2_segment(self), rhs.q.dist2_segment(self)];
         candidate.iter().min_by(|&a, &b| a.partial_cmp(b).unwrap()).cloned().unwrap()
     }
-}
-
-impl Segment<isize> {
-    pub fn as_f64(&self) -> Segment<f64> {
-        Segment::new((self.p.as_f64(), self.q.as_f64()))
-    }
-}
-
-impl Segment<f64> {
-    pub fn as_isize(&self) -> Segment<isize> {
-        Segment::new((self.p.as_isize(), self.q.as_isize()))
-    }
-    // 線分と線分との距離
-    pub fn dist(&self, rhs: &Segment<f64>) -> f64 {
-        self.dist2(rhs).sqrt()
+    pub fn dist(&self, rhs: &Segment<T>) -> f64 {
+        self.dist2(rhs).as_f64().sqrt()
     }
 }
 
 // 向きが反対でも同じとみなす
-impl PartialEq for Segment<f64> {
+impl<T: PrimNumNeg> PartialEq for Segment<T> {
     fn eq(&self, rhs: &Self) -> bool {
         (self.p == rhs.p && self.q == rhs.q)
         || (self.p == rhs.q && self.q == rhs.p)
@@ -231,7 +241,7 @@ impl<T: PrimNumNeg> HalfLine<T> {
 }
 
 // 起点と向きが同じであれば同じとみなす
-impl PartialEq for HalfLine<f64> {
+impl<T: PrimNumNeg> PartialEq for HalfLine<T> {
     fn eq(&self, rhs: &Self) -> bool {
         self.p == rhs.p && (self.q - self.p).is_parallel(rhs.q - rhs.p)
     }
@@ -255,17 +265,14 @@ impl<T: PrimNumNeg> Line<T> {
         let r = self.p * det + self.to_vector() * rhs.to_vector().det(self.p - rhs.p);
         Some((r, det))
     }
-}
-
-impl Line<f64> {
-    pub fn cross_point_f64(&self, rhs: &Line<f64>) -> Option<Point<f64>> {
+    pub fn cross_point_f64(&self, rhs: &Line<T>) -> Option<Point<f64>> {
         let (r, det) = self.cross_point(rhs)?;
-        Some(r / det)
+        Some(r.as_f64() / det.as_f64())
     }
 }
 
 // 同一直線上にあれば同じとみなす
-impl PartialEq for Line<f64> {
+impl<T: PrimNumNeg> PartialEq for Line<T> {
     fn eq(&self, rhs: &Self) -> bool {
         self.contains(rhs.p) && self.contains(rhs.q)
     }
