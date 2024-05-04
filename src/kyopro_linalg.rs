@@ -3,6 +3,8 @@
 use std::ops::*;
 use std::fmt::Display;
 
+type FracPoint<T> = (Point<T>, T);
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
 pub struct Point<T> (pub T, pub T);
 
@@ -25,11 +27,34 @@ where T: Default + Copy + PartialOrd
         Line::new((*self, *self + line.to_vector().perpendicular()))
     }
     // 交点、Point<T> / det が答え
-    pub fn perpendicular_line_foot(&self, line: &Line<T>) -> (Point<T>, T) {
+    pub fn perpendicular_line_foot_frac(&self, line: &Line<T>) -> FracPoint<T> {
         line.cross_point(&self.perpendicular_line(line)).unwrap()
     }
-    pub fn perpendicular_segment_foot(&self, seg: &Segment<T>) -> Option<(Point<T>, T)> {
-        seg.cross_point_with_line(&self.perpendicular_line(&Line::from_segment(seg)))
+    pub fn perpendicular_segment_foot_frac(&self, seg: &Segment<T>) -> Option<FracPoint<T>> {
+        seg.cross_point_with_line_frac(&self.perpendicular_line(&Line::from_segment(seg)))
+    }
+    // 交点、Point<T> が答え
+    pub fn perpendicular_line_foot(&self, line: &Line<T>) -> Point<T> {
+        let (r, det) = self.perpendicular_line_foot_frac(line);
+        r / det
+    }
+    pub fn perpendicular_segment_foot(&self, seg: &Segment<T>) -> Option<Point<T>> {
+        let Some((r, det)) = self.perpendicular_segment_foot_frac(seg) else { return None; };
+        Some(r / det)
+    }
+    pub fn dist2_line(&self, line: &Line<T>) -> T {
+        let foot = self.perpendicular_line_foot(line);
+        self.dist2(foot)
+    }
+    pub fn dist2_segment(&self, seg: &Segment<T>) -> T {
+        let dist2p = self.dist2(seg.p);
+        let dist2q = self.dist2(seg.q);
+        let mut res = if dist2p < dist2q { dist2p } else { dist2q };
+        if let Some(foot) = self.perpendicular_segment_foot(seg) {
+            let dist2foot = self.dist2(foot);
+            if dist2foot < res { res = dist2foot; }
+        }
+        res
     }
 }
 
@@ -73,7 +98,7 @@ impl Point<f64> {
     // 範囲正規化したベクトルを返す
     pub fn clamp(&self, min_v: f64, max_v: f64) -> Self {
         assert!(min_v <= max_v && min_v >= 0.0);
-        let norm = self.norm();
+        let norm = self.abs();
         let mul = if norm == 0.0 { 1.0 }
         else if norm < min_v as f64 { min_v.min(max_v) / norm
         } else if norm > max_v as f64 {
@@ -82,36 +107,23 @@ impl Point<f64> {
         else { 1.0 };
         self.mul(mul)
     }
-    pub fn norm(&self) -> f64 { self.abs2().sqrt() }
-    pub fn set_norm(&self, norm: f64) -> Self {
-        let norm_org = self.norm();
+    pub fn abs(&self) -> f64 { self.abs2().sqrt() }
+    pub fn set_abs(&self, norm: f64) -> Self {
+        let norm_org = self.abs();
         Point::new((self.0 * norm / norm_org, self.1 * norm / norm_org))
     }
-    pub fn dist(&self, rhs: Self) -> f64 { (*self - rhs).norm() }
-    pub fn cos(&self, rhs: Self) -> f64 { self.dot(rhs) / (self.norm() * rhs.norm()) }
+    pub fn dist(&self, rhs: Self) -> f64 { (*self - rhs).abs() }
+    pub fn cos(&self, rhs: Self) -> f64 { self.dot(rhs) / (self.abs() * rhs.abs()) }
     pub fn round(&self) -> Self { Self (self.0.round(), self.1.round()) }
     pub fn floor(&self) -> Self { Self (self.0.floor(), self.1.floor()) }
     pub fn ceil(&self) -> Self { Self (self.0.ceil(), self.1.ceil()) }
     pub fn trunc(&self) -> Self { Self (self.0.trunc(), self.1.trunc()) }   // floor_abs
     pub fn as_isize(&self) -> Point<isize> { Point::<isize>::new((self.0 as isize, self.1 as isize)) }
-    pub fn perpendicular_line_foot_f64(&self, line: &Line<f64>) -> Point<f64> {
-        let (r, det) = self.perpendicular_line_foot(line);
-        r / det
-    }
     pub fn dist_line(&self, line: &Line<f64>) -> f64 {
-        let foot = self.perpendicular_line_foot_f64(line);
-        self.dist(foot)
-    }
-    pub fn perpendicular_segment_foot_f64(&self, seg: &Segment<f64>) -> Option<Point<f64>> {
-        let Some((r, det)) = self.perpendicular_segment_foot(seg) else { return None; };
-        Some(r / det)
+        self.dist2_line(line).sqrt()
     }
     pub fn dist_segment(&self, segment: &Segment<f64>) -> f64 {
-        let mut res = self.dist(segment.p).min(self.dist(segment.q));
-        if let Some(foot) = self.perpendicular_segment_foot_f64(segment) {
-            res = res.min(self.dist(foot));
-        }
-        res
+        self.dist2_segment(segment).sqrt()
     }
 }
 
@@ -136,7 +148,7 @@ where T: Default + Copy + PartialOrd
         self.cross_with_line(&Line::from_segment(rhs)) && rhs.cross_with_line(&Line::from_segment(self))
     }
     pub fn cross_with_halfline(&self, hl: &HalfLine<T>) -> bool {
-        let Some((r, det)) = self.cross_point_with_line(&Line::from_halfline(hl)) else { return false; };
+        let Some((r, det)) = self.cross_point_with_line_frac(&Line::from_halfline(hl)) else { return false; };
         let deg = (r - hl.p * det).dot(hl.to_vector());
         // オーバーフロー対策のため、degとdetをかけない
         deg >= T::default() && det >= T::default() || deg <= T::default() && det <= T::default()
@@ -145,17 +157,38 @@ where T: Default + Copy + PartialOrd
         line.to_vector().det(self.p - line.p) * line.to_vector().det(self.q - line.p) <= T::default()
     }
     // 交点、Point<T> / det が答え
-    pub fn cross_point(&self, rhs: &Segment<T>) -> Option<(Point<T>, T)> {
+    pub fn cross_point_frac(&self, rhs: &Segment<T>) -> Option<FracPoint<T>> {
         if !self.cross(rhs) { return None; }
         Line::from_segment(self).cross_point(&Line::from_segment(rhs))
     }
-    pub fn cross_point_with_halfline(&self, hl: &HalfLine<T>) -> Option<(Point<T>, T)> {
+    pub fn cross_point_with_halfline_frac(&self, hl: &HalfLine<T>) -> Option<FracPoint<T>> {
         if !self.cross_with_halfline(hl) { return None; }
         Line::from_segment(self).cross_point(&Line::from_halfline(hl))
     }
-    pub fn cross_point_with_line(&self, line: &Line<T>) -> Option<(Point<T>, T)> {
+    pub fn cross_point_with_line_frac(&self, line: &Line<T>) -> Option<FracPoint<T>> {
         if !self.cross_with_line(line) { return None; }
         Line::from_segment(self).cross_point(line)
+    }
+    // 線分の範囲を意識した交点
+    pub fn cross_point(&self, rhs: &Segment<T>) -> Option<Point<T>> {
+        let (r, det) = self.cross_point_frac(rhs)?;
+        Some(r / det)
+    }
+    pub fn cross_point_with_halfline(&self, hl: &HalfLine<T>) -> Option<Point<T>> {
+        let (r, det) = self.cross_point_with_halfline_frac(hl)?;
+        Some(r / det)
+    }
+    pub fn cross_point_with_line(&self, line: &Line<T>) -> Option<Point<T>> {
+        let (r, det) = self.cross_point_with_line_frac(line)?;
+        Some(r / det)
+    }
+    // 線分と線分との距離
+    pub fn dist2(&self, rhs: &Segment<T>) -> T {
+        if self.cross(rhs) { return T::default(); }
+        let candidate = [
+            self.p.dist2_segment(rhs), self.q.dist2_segment(rhs),
+            rhs.p.dist2_segment(self), rhs.q.dist2_segment(self)];
+        candidate.iter().min_by(|&a, &b| a.partial_cmp(b).unwrap()).cloned().unwrap()
     }
 }
 
@@ -169,24 +202,9 @@ impl Segment<f64> {
     pub fn as_isize(&self) -> Segment<isize> {
         Segment::new((self.p.as_isize(), self.q.as_isize()))
     }
-    // 線分の範囲を意識した交点
-    pub fn cross_point_f64(&self, rhs: &Segment<f64>) -> Option<Point<f64>> {
-        let (r, det) = self.cross_point(rhs)?;
-        Some(r / det)
-    }
-    pub fn cross_point_with_halfline_f64(&self, hl: &HalfLine<f64>) -> Option<Point<f64>> {
-        let (r, det) = self.cross_point_with_halfline(hl)?;
-        Some(r / det)
-    }
-    pub fn cross_point_with_line_f64(&self, line: &Line<f64>) -> Option<Point<f64>> {
-        let (r, det) = self.cross_point_with_line(line)?;
-        Some(r / det)
-    }
     // 線分と線分との距離
     pub fn dist(&self, rhs: &Segment<f64>) -> f64 {
-        if self.cross_point_f64(rhs).is_some() { return 0.0; }
-        self.p.dist_segment(rhs).min(self.q.dist_segment(rhs))
-            .min(rhs.p.dist_segment(self).min(rhs.q.dist_segment(self)))
+        self.dist2(rhs).sqrt()
     }
 }
 
@@ -242,7 +260,7 @@ where T: Default + Copy + PartialOrd
     pub fn from_halfline(hl: &HalfLine<T>) -> Self { Self { p: hl.p, q: hl.q } }
     pub fn contains(&self, p: Point<T>) -> bool { (p - self.p).is_parallel(self.q - self.p) }
     // 直線と直線との交点、Point<T> / det が答え
-    pub fn cross_point(&self, rhs: &Line<T>) -> Option<(Point<T>, T)> {
+    pub fn cross_point(&self, rhs: &Line<T>) -> Option<FracPoint<T>> {
         let det = self.to_vector().det(rhs.to_vector());
         if det == T::default() { return None; } // 平行
         let r = self.p * det + self.to_vector() * rhs.to_vector().det(self.p - rhs.p);
@@ -305,9 +323,9 @@ mod tests {
         // 交点は解析的に求められる
         let cross_loa_lbc = Line::from_segment(&oa.as_f64()).cross_point_f64(&Line::from_segment(&bc.as_f64())).unwrap();
         assert_eq!(cross_loa_lbc, Point::new((0.5, 1.0)));
-        let cross_oa_lbc = oa.as_f64().cross_point_with_line_f64(&Line::from_segment(&bc.as_f64())).unwrap();
+        let cross_oa_lbc = oa.as_f64().cross_point_with_line(&Line::from_segment(&bc.as_f64())).unwrap();
         assert_eq!(cross_oa_lbc, Point::new((0.5, 1.0)));
-        let cross_oa_bc = oa.as_f64().cross_point_f64(&bc.as_f64()).unwrap();
+        let cross_oa_bc = oa.as_f64().cross_point(&bc.as_f64()).unwrap();
         assert_eq!(cross_oa_bc, Point::new((0.5, 1.0)));
         let cross_ad_bc = ad.cross_point(&bc);
         assert!(cross_ad_bc.is_none());
