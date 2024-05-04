@@ -3,17 +3,21 @@
 use std::ops::*;
 use std::fmt::Display;
 
+pub trait PrimNumNeg:
+    Default + Copy + PartialEq + PartialOrd
+    + Add<Output = Self> + Sub<Output = Self>
+    + Mul<Output = Self> + Div<Output = Self>
+    + Neg<Output = Self> {}
+
+macro_rules! impl_primnum_neg { ($($ty:ty),*) => { $(impl PrimNumNeg for $ty {})* };}
+impl_primnum_neg!(isize, i32, i64, f32, f64);
+
 type FracPoint<T> = (Point<T>, T);
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
 pub struct Point<T> (pub T, pub T);
 
-impl<T> Point<T>
-where T: Default + Copy + PartialOrd
-    + Add<Output = T> + Sub<Output = T>
-    + Mul<Output = T> + Div<Output = T>
-    + Neg<Output = T>
-{
+impl<T: PrimNumNeg> Point<T>{
     pub fn zero() -> Self { Self::default() }
     pub fn new((i, j): (T, T)) -> Self { Self (i, j) }
     pub fn abs2(&self) -> T { self.0 * self.0 + self.1 * self.1 }
@@ -132,12 +136,7 @@ pub struct Segment<T> {
     pub p: Point<T>, pub q: Point<T>,
 }
 
-impl<T> Segment<T>
-where T: Default + Copy + PartialOrd
-    + Add<Output = T> + Sub<Output = T>
-    + Mul<Output = T> + Div<Output = T>
-    + Neg<Output = T>
-{
+impl<T: PrimNumNeg> Segment<T> {
     pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
     pub fn to_vector(&self) -> Point<T> { self.q - self.p }
     pub fn abs2(&self) -> T { self.to_vector().abs2() }
@@ -222,12 +221,7 @@ pub struct HalfLine<T> {
     pub p: Point<T>, pub q: Point<T>,
 }
 
-impl<T> HalfLine<T>
-where T: Default + Copy + PartialOrd
-    + Add<Output = T> + Sub<Output = T>
-    + Mul<Output = T> + Div<Output = T>
-    + Neg<Output = T>
-{
+impl<T: PrimNumNeg> HalfLine<T> {
     pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
     pub fn to_vector(&self) -> Point<T> { self.q - self.p }
     pub fn from_segment(seg: &Segment<T>) -> Self { Self { p: seg.p, q: seg.q } }
@@ -248,12 +242,7 @@ pub struct Line<T> {
     pub p: Point<T>, pub q: Point<T>,
 }
 
-impl<T> Line<T>
-where T: Default + Copy + PartialOrd
-    + Add<Output = T> + Sub<Output = T>
-    + Mul<Output = T> + Div<Output = T>
-    + Neg<Output = T>
-{
+impl<T: PrimNumNeg> Line<T> {
     pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
     pub fn to_vector(&self) -> Point<T> { self.q - self.p }
     pub fn from_segment(seg: &Segment<T>) -> Self { Self { p: seg.p, q: seg.q } }
