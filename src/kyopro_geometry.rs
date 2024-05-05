@@ -3,7 +3,7 @@
 use std::ops::*;
 use std::fmt::Display;
 
-pub trait PrimNumNeg:
+pub trait NumRing:
     Default + Copy + std::fmt::Debug
     + PartialEq + PartialOrd
     + Add<Output = Self> + Sub<Output = Self>
@@ -16,7 +16,7 @@ pub trait PrimNumNeg:
     fn as_isize(&self) -> isize;
 }
 macro_rules! impl_primnum_int { ($($ty:ty),*) => {$(
-    impl PrimNumNeg for $ty {
+    impl NumRing for $ty {
         fn zero() -> Self { 0 }
         fn one() -> Self { 1 }
         fn as_f64(&self) -> f64 { *self as f64 }
@@ -24,7 +24,7 @@ macro_rules! impl_primnum_int { ($($ty:ty),*) => {$(
     }
 )*};}
 macro_rules! impl_primnum_float { ($($ty:ty),*) => {$(
-    impl PrimNumNeg for $ty {
+    impl NumRing for $ty {
         fn zero() -> Self { 0.0 }
         fn one() -> Self { 1.0 }
         fn as_f64(&self) -> f64 { *self as f64 }
@@ -39,7 +39,7 @@ type FracPoint<T> = (Point<T>, T);
 #[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
 pub struct Point<T> (pub T, pub T);
 
-impl<T: PrimNumNeg> Point<T>{
+impl<T: NumRing> Point<T>{
     pub fn zero() -> Self { Self::default() }
     pub fn new((i, j): (T, T)) -> Self { Self (i, j) }
     pub fn abs2(&self) -> T { self.0 * self.0 + self.1 * self.1 }
@@ -157,7 +157,7 @@ pub struct Segment<T> {
     pub p: Point<T>, pub q: Point<T>,
 }
 
-impl<T: PrimNumNeg> Segment<T> {
+impl<T: NumRing> Segment<T> {
     pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
     pub fn to_vector(&self) -> Point<T> { self.q - self.p }
     pub fn abs2(&self) -> T { self.to_vector().abs2() }
@@ -218,7 +218,7 @@ impl<T: PrimNumNeg> Segment<T> {
 }
 
 // 向きが反対でも同じとみなす
-impl<T: PrimNumNeg> PartialEq for Segment<T> {
+impl<T: NumRing> PartialEq for Segment<T> {
     fn eq(&self, rhs: &Self) -> bool {
         (self.p == rhs.p && self.q == rhs.q)
         || (self.p == rhs.q && self.q == rhs.p)
@@ -231,7 +231,7 @@ pub struct HalfLine<T> {
     pub p: Point<T>, pub q: Point<T>,
 }
 
-impl<T: PrimNumNeg> HalfLine<T> {
+impl<T: NumRing> HalfLine<T> {
     pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
     pub fn to_vector(&self) -> Point<T> { self.q - self.p }
     pub fn from_segment(seg: &Segment<T>) -> Self { Self { p: seg.p, q: seg.q } }
@@ -241,7 +241,7 @@ impl<T: PrimNumNeg> HalfLine<T> {
 }
 
 // 起点と向きが同じであれば同じとみなす
-impl<T: PrimNumNeg> PartialEq for HalfLine<T> {
+impl<T: NumRing> PartialEq for HalfLine<T> {
     fn eq(&self, rhs: &Self) -> bool {
         self.p == rhs.p && (self.q - self.p).is_parallel(rhs.q - rhs.p)
     }
@@ -252,7 +252,7 @@ pub struct Line<T> {
     pub p: Point<T>, pub q: Point<T>,
 }
 
-impl<T: PrimNumNeg> Line<T> {
+impl<T: NumRing> Line<T> {
     pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
     pub fn to_vector(&self) -> Point<T> { self.q - self.p }
     pub fn from_segment(seg: &Segment<T>) -> Self { Self { p: seg.p, q: seg.q } }
@@ -272,7 +272,7 @@ impl<T: PrimNumNeg> Line<T> {
 }
 
 // 同一直線上にあれば同じとみなす
-impl<T: PrimNumNeg> PartialEq for Line<T> {
+impl<T: NumRing> PartialEq for Line<T> {
     fn eq(&self, rhs: &Self) -> bool {
         self.contains(rhs.p) && self.contains(rhs.q)
     }
