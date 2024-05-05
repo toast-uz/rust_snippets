@@ -30,7 +30,7 @@ bitvec = "=1.0.1"
 #omniswap = "=0.1.0"
 #multiversion = "=0.7.2"
 # since 202004:
-#num = "=0.4.1"
+num = "=0.4.1"
 #num-bigint = "=0.4.3"
 #num-complex = "=0.4.3"
 #num-integer = "=0.1.45"
