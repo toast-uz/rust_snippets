@@ -13,7 +13,7 @@ impl<T: NumRing> Frac<T> {
     pub fn new(n: T, d: T) -> Self {
         assert!(d != T::zero());
         let g = n.gcd(d);
-        Self { n: n / g, d: d / g }
+        Self { n: (n / g).abs() * n.signum() * d.signum(), d: (d / g).abs() }
     }
     pub fn calc(&self) -> T { self.n / self.d }
 }
@@ -65,8 +65,8 @@ impl<T: NumRing> PartialEq for Frac<T> {
     }
 }
 impl<T: NumRing> PartialOrd for Frac<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.d * other.d > T::zero() {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { // avoid overflow
+        if self.d > T::zero() && other.d > T::zero() || self.d < T::zero() && other.d < T::zero() {
             self.n.checkked_mul(other.d).partial_cmp(&self.d.checkked_mul(other.n))
         } else {
             self.d.checkked_mul(other.n).partial_cmp(&self.n.checkked_mul(other.d))
@@ -88,7 +88,9 @@ pub trait NumRing:
 {
     fn zero() -> Self;
     fn one() -> Self;
+    fn abs(&self) -> Self { if *self > Self::zero() { *self } else { -*self } }
     fn gcd(&self, rhs: Self) -> Self;
+    fn signum(&self) -> Self { if *self > Self::zero() { Self::one() } else if *self < Self::zero() { -Self::one() } else { Self::zero() } }
     fn to_f64(&self) -> f64;
     fn to_isize(&self) -> isize;
     fn to_frac(&self) -> Frac<Self> { Frac::new(*self, Self::one()) }
@@ -101,8 +103,8 @@ macro_rules! impl_primnum_int { ($($ty:ty),*) => {$(
         fn zero() -> Self { 0 }
         fn one() -> Self { 1 }
         fn gcd(&self, rhs: Self) -> Self {
-            let mut a = *self;
-            let mut b = rhs;
+            let mut a = self.abs();
+            let mut b = rhs.abs();
             while b != 0 {
                 let r = a % b;
                 a = b;
@@ -112,16 +114,16 @@ macro_rules! impl_primnum_int { ($($ty:ty),*) => {$(
         }
         fn to_f64(&self) -> f64 { *self as f64 }
         fn to_isize(&self) -> isize { *self as isize }
-        fn checkked_add(&self, rhs: Self) -> Self { self.checked_add(rhs).unwrap() }
-        fn checkked_sub(&self, rhs: Self) -> Self { self.checked_sub(rhs).unwrap() }
-        fn checkked_mul(&self, rhs: Self) -> Self { self.checked_mul(rhs).unwrap() }
+        fn checkked_add(&self, rhs: Self) -> Self { self.checked_add(rhs).unwrap_or_else(|| panic!("overflow by {} + {}", self, rhs)) }
+        fn checkked_sub(&self, rhs: Self) -> Self { self.checked_sub(rhs).unwrap_or_else(|| panic!("overflow by {} - {}", self, rhs)) }
+        fn checkked_mul(&self, rhs: Self) -> Self { self.checked_mul(rhs).unwrap_or_else(|| panic!("overflow by {} * {}", self, rhs)) }
     }
 )*};}
 macro_rules! impl_primnum_float { ($($ty:ty),*) => {$(
     impl NumRing for $ty {
         fn zero() -> Self { 0.0 }
         fn one() -> Self { 1.0 }
-        fn gcd(&self, rhs: Self) -> Self { rhs }
+        fn gcd(&self, rhs: Self) -> Self { rhs.abs() }
         fn to_f64(&self) -> f64 { *self as f64 }
         fn to_isize(&self) -> isize { *self as isize }
         fn checkked_add(&self, rhs: Self) -> Self { *self + rhs }   // no check
@@ -132,7 +134,7 @@ macro_rules! impl_primnum_float { ($($ty:ty),*) => {$(
 impl<T: NumRing> NumRing for Frac<T> {
     fn zero() -> Self { Frac::new(T::zero(), T::one()) }
     fn one() -> Self { Frac::new(T::one(), T::one()) }
-    fn gcd(&self, rhs: Self) -> Self { rhs }
+    fn gcd(&self, rhs: Self) -> Self { rhs.abs() }
     fn to_f64(&self) -> f64 { self.n.to_f64() / self.d.to_f64() }
     fn to_isize(&self) -> isize { self.to_f64() as isize }
     fn checkked_add(&self, rhs: Self) -> Self { *self + rhs }   // checkeed
@@ -180,7 +182,7 @@ impl<T: NumRing> Point<T>{
     pub fn dist2(&self, rhs: Self) -> T { (*self - rhs).abs2() }
     pub fn dist(&self, rhs: Self) -> f64 { self.dist2(rhs).to_f64().sqrt() }
     pub fn dot(&self, rhs: Self) -> T { self.0.checkked_mul(rhs.0).checkked_add(self.1.checkked_mul(rhs.1)) }
-    pub fn det(&self, rhs: Self) -> T { self.0.checkked_mul(rhs.1).checkked_sub(self.1.checkked_mul(rhs.0)) }
+    pub fn det(&self, rhs: Self) -> T { self.0.checkked_mul(rhs.1).checkked_sub(rhs.0.checkked_mul(self.1)) }
     pub fn is_parallel(&self, rhs: Self) -> bool { self.det(rhs) == T::default() }
     pub fn perpendicular(&self) -> Self { Self (-self.1, self.0) }
     pub fn perpendicular_line(&self, line: &Line<T>) -> Line<T> {
@@ -282,11 +284,21 @@ impl<T: NumRing> Segment<T> {
         self.cross_with_line(&Line::from_segment(rhs)) && rhs.cross_with_line(&Line::from_segment(self))
     }
     pub fn cross_with_halfline(&self, hl: &HalfLine<T>) -> bool {
-        let Some(r) = self.cross_point_with_line_frac(&Line::from_halfline(hl)) else { return false; };
-        (r - hl.p.to_frac()).dot(hl.to_vector().to_frac()) >= Frac::<T>::zero()
+        if !self.cross_with_line(&Line::from_halfline(hl)) { return false; }
+        let det1 = (hl.p - self.p).det(self.q - self.p);
+        let det2 = (hl.p - self.p).det(hl.q - self.p);
+        let det3 = (hl.p - self.q).det(self.p - self.q);
+        let det4 = (hl.p - self.q).det(hl.q - self.q);
+        det1 > T::zero() && det2 > T::zero() || det1 < T::zero() && det2 < T::zero()
+            || det3 > T::zero() && det4 > T::zero() || det3 < T::zero() && det4 < T::zero()
+        // overfloww for isize
+        //let Some(r) = self.cross_point_with_line_frac(&Line::from_halfline(hl)) else { return false; };
+        //(r - hl.p.to_frac()).dot(hl.to_vector().to_frac()) >= Frac::<T>::zero()
     }
     pub fn cross_with_line(&self, line: &Line<T>) -> bool {
-        line.to_vector().det(self.p - line.p) * line.to_vector().det(self.q - line.p) <= T::default()
+        let det1 = line.to_vector().det(self.p - line.p);
+        let det2 = line.to_vector().det(self.q - line.p);
+        det1 >= T::zero() && det2 <= T::zero() || det1 <= T::zero() && det2 >= T::zero()
     }
     // 交点、Point<T> / det が答え
     pub fn cross_point_frac(&self, rhs: &Segment<T>) -> Option<Point<Frac<T>>> {
@@ -559,25 +571,44 @@ mod tests {
         assert_eq!(r.cross_point_with_line_frac(&ob_l), Some(ru.to_frac()));
         assert_eq!(u.cross_point_with_line_frac(&ob_l), Some(ru.to_frac()));
         assert_eq!(d.cross_point_with_line_frac(&ob_l), Some(ld.to_frac()));
-        // 本番バグパターン
-        const MAX_LENGTH: f64 = 1e5;
-        let ld = Point::new((-MAX_LENGTH, -MAX_LENGTH));
-        let rd = Point::new((MAX_LENGTH, -MAX_LENGTH));
-        let lu = Point::new((-MAX_LENGTH, MAX_LENGTH));
-        let ru = Point::new((MAX_LENGTH, MAX_LENGTH));
-        let l = Segment::new((ld, lu));
-        let r = Segment::new((rd, ru));
-        let u = Segment::new((lu, ru));
-        let d = Segment::new((ld, rd));
-        let hl = HalfLine { p: Point(-33936.0, 65341.0), q: Point(-33936.0, 99000.0) };
-        let line = Line::from_halfline(&hl);
-        assert!(!l.cross_with_line(&line));
-        assert!(!r.cross_with_line(&line));
-        assert_eq!(u.cross_point_with_line(&line), Some(Point(-33936.0, MAX_LENGTH)));
-        assert_eq!(d.cross_point_with_line(&line), Some(Point(-33936.0, -MAX_LENGTH)));
-        assert!(!l.cross_with_halfline(&hl));
-        assert!(!r.cross_with_halfline(&hl));
-        assert_eq!(u.cross_point_with_halfline(&hl), Some(Point(-33936.0, MAX_LENGTH)));
-        assert!(!d.cross_with_halfline(&hl));
+
+        // オーバーフローする場合（isize）アルゴリズムを修正してオーバーフローを回避
+        const MAX_LENGTH: isize = 1e5 as isize;
+        let a = Point::new((-MAX_LENGTH, MAX_LENGTH));
+        let b = Point::new((MAX_LENGTH - 1, 0));
+        let p = Point(-1, MAX_LENGTH - 1);
+        let ab = Segment::new((a, b));
+        let op_l = Line::new((o, p));
+        let op_hl = HalfLine::new((o, p));
+        let op_seg = Segment::new((o, p));
+        assert!(ab.cross_with_line(&op_l)); // success
+        assert!(ab.cross(&op_seg)); // success
+        assert!(ab.cross_with_halfline(&op_hl));    // overflow for naive algorithm
+        // オーバーフローしない場合（f64）
+        const MAX_LENGTH2: f64 = 1e5;
+        let a = Point::new((-MAX_LENGTH2, MAX_LENGTH2));
+        let b = Point::new((MAX_LENGTH2 - 1.0, 0.0));
+        let o = Point::zero();
+        let p = Point(-1.0, MAX_LENGTH2 - 1.0);
+        let ab = Segment::new((a, b));
+        let op_l = Line::new((o, p));
+        let op_hl = HalfLine::new((o, p));
+        let op_seg = Segment::new((o, p));
+        assert!(ab.cross_with_line(&op_l)); // success
+        assert!(ab.cross(&op_seg)); // success
+        assert!(ab.cross_with_halfline(&op_hl));    // no overflow
+        // オーバーフローしない場合（i128）
+        const MAX_LENGTH3: i128 = 1e5 as i128;
+        let a = Point::new((-MAX_LENGTH3, MAX_LENGTH3));
+        let b = Point::new((MAX_LENGTH3 - 1, 0));
+        let o = Point::zero();
+        let p = Point(-1, MAX_LENGTH3 - 1);
+        let ab = Segment::new((a, b));
+        let op_l = Line::new((o, p));
+        let op_hl = HalfLine::new((o, p));
+        let op_seg = Segment::new((o, p));
+        assert!(ab.cross_with_line(&op_l)); // success
+        assert!(ab.cross(&op_seg)); // success
+        assert!(ab.cross_with_halfline(&op_hl));    // no overflow
     }
 }
