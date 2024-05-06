@@ -11,7 +11,7 @@ pub trait Num:
 {
     fn zero() -> Self;
     fn one() -> Self;
-    fn abs(&self) -> Self { if *self > Self::zero() { *self } else { Self::zero().checkked_sub(*self) } }
+    fn abs(&self) -> Self { if *self >= Self::zero() { *self } else { Self::zero().checkked_sub(*self) } }
     fn gcd(&self, rhs: Self) -> Self;
     fn signum(&self) -> Self { if *self > Self::zero() { Self::one() } else if *self < Self::zero() { Self::zero().checkked_sub(Self::one()) } else { Self::zero() } }
     fn to_f64(&self) -> f64;
@@ -27,6 +27,7 @@ macro_rules! impl_numring_int { ($($ty:ty),*) => {$(
         fn zero() -> Self { 0 }
         fn one() -> Self { 1 }
         fn gcd(&self, rhs: Self) -> Self {
+            assert!(rhs != 0);
             let mut a = self.abs();
             let mut b = rhs.abs();
             while b != 0 {
@@ -47,7 +48,10 @@ macro_rules! impl_numring_float { ($($ty:ty),*) => {$(
     impl Num for $ty {
         fn zero() -> Self { 0.0 }
         fn one() -> Self { 1.0 }
-        fn gcd(&self, rhs: Self) -> Self { rhs.abs() }
+        fn gcd(&self, rhs: Self) -> Self {
+            assert!(rhs != 0.0);
+            rhs.abs()   // Fracの分母を1.0にするため
+        }
         fn to_f64(&self) -> f64 { *self as f64 }
         fn to_isize(&self) -> isize { *self as isize }
         fn checkked_add(&self, rhs: Self) -> Self { *self + rhs }   // no check
