@@ -140,7 +140,7 @@ impl<T: Num> Num for Frac<T> {
     fn one() -> Self { Frac::new(T::one(), T::one()) }
     fn gcd(&self, rhs: Self) -> Self { rhs.abs() }
     fn to_f64(&self) -> f64 { self.n.to_f64() / self.d.to_f64() }
-    fn to_isize(&self) -> isize { self.to_f64() as isize }
+    fn to_isize(&self) -> isize { self.n.to_isize() / self.d.to_isize() }
     fn checkked_add(&self, rhs: Self) -> Self { *self + rhs }   // checkeed
     fn checkked_sub(&self, rhs: Self) -> Self { *self - rhs }   // checkeed
     fn checkked_mul(&self, rhs: Self) -> Self { *self * rhs }   // checkeed
