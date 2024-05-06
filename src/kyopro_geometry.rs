@@ -98,7 +98,7 @@ pub trait NumRing:
     fn checkked_sub(&self, rhs: Self) -> Self;
     fn checkked_mul(&self, rhs: Self) -> Self;
 }
-macro_rules! impl_primnum_int { ($($ty:ty),*) => {$(
+macro_rules! impl_numring_int { ($($ty:ty),*) => {$(
     impl NumRing for $ty {
         fn zero() -> Self { 0 }
         fn one() -> Self { 1 }
@@ -119,7 +119,7 @@ macro_rules! impl_primnum_int { ($($ty:ty),*) => {$(
         fn checkked_mul(&self, rhs: Self) -> Self { self.checked_mul(rhs).unwrap_or_else(|| panic!("overflow by {} * {}", self, rhs)) }
     }
 )*};}
-macro_rules! impl_primnum_float { ($($ty:ty),*) => {$(
+macro_rules! impl_numring_float { ($($ty:ty),*) => {$(
     impl NumRing for $ty {
         fn zero() -> Self { 0.0 }
         fn one() -> Self { 1.0 }
@@ -142,8 +142,8 @@ impl<T: NumRing> NumRing for Frac<T> {
     fn checkked_mul(&self, rhs: Self) -> Self { *self * rhs }   // checkeed
 }
 
-impl_primnum_int!(isize, i32, i64, i128);
-impl_primnum_float!(f32, f64);
+impl_numring_int!(isize, i32, i64, i128);
+impl_numring_float!(f32, f64);
 
 type FracPoint<T> = (Point<T>, T);
 
@@ -271,9 +271,6 @@ pub struct Segment<T> {
 }
 
 impl<T: NumRing> Segment<T> {
-    pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
-    pub fn to_vector(&self) -> Point<T> { self.q - self.p }
-    pub fn abs2(&self) -> T { self.to_vector().abs2() }
     pub fn to_f64(&self) -> Segment<f64> { Segment::new((self.p.to_f64(), self.q.to_f64())) }
     pub fn to_isize(&self) -> Segment<isize> { Segment::new((self.p.to_isize(), self.q.to_isize())) }
     pub fn to_frac(&self) -> Segment<Frac<T>> { Segment::new((self.p.to_frac(), self.q.to_frac())) }
@@ -303,15 +300,15 @@ impl<T: NumRing> Segment<T> {
     // 交点、Point<T> / det が答え
     pub fn cross_point_frac(&self, rhs: &Segment<T>) -> Option<Point<Frac<T>>> {
         if !self.cross(rhs) { return None; }
-        Line::from_segment(self).cross_point_frac(&Line::from_segment(rhs))
+        self.to_line().cross_point_frac(&rhs.to_line())
     }
     pub fn cross_point_with_halfline_frac(&self, hl: &HalfLine<T>) -> Option<Point<Frac<T>>> {
         if !self.cross_with_halfline(hl) { return None; }
-        Line::from_segment(self).cross_point_frac(&Line::from_halfline(hl))
+        self.to_line().cross_point_frac(&hl.to_line())
     }
     pub fn cross_point_with_line_frac(&self, line: &Line<T>) -> Option<Point<Frac<T>>> {
         if !self.cross_with_line(line) { return None; }
-        Line::from_segment(self).cross_point_frac(line)
+        self.to_line().cross_point_frac(line)
     }
     // 線分の範囲を意識した交点
     pub fn cross_point(&self, rhs: &Segment<T>) -> Option<Point<T>> {
@@ -351,12 +348,9 @@ pub struct HalfLine<T> {
 }
 
 impl<T: NumRing> HalfLine<T> {
-    pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
     pub fn to_f64(&self) -> HalfLine<f64> { HalfLine::new((self.p.to_f64(), self.q.to_f64())) }
     pub fn to_isize(&self) -> HalfLine<isize> { HalfLine::new((self.p.to_isize(), self.q.to_isize())) }
     pub fn to_frac(&self) -> HalfLine<Frac<T>> { HalfLine::new((self.p.to_frac(), self.q.to_frac())) }
-    pub fn to_vector(&self) -> Point<T> { self.q - self.p }
-    pub fn from_segment(seg: &Segment<T>) -> Self { Self { p: seg.p, q: seg.q } }
     pub fn contains(&self, p: Point<T>) -> bool {
         Line::from_halfline(self).contains(p) && (p - self.p).dot(self.q - self.p) >= T::default()
     }
@@ -375,13 +369,9 @@ pub struct Line<T> {
 }
 
 impl<T: NumRing> Line<T> {
-    pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
     pub fn to_f64(&self) -> Line<f64> { Line::new((self.p.to_f64(), self.q.to_f64())) }
     pub fn to_isize(&self) -> Line<isize> { Line::new((self.p.to_isize(), self.q.to_isize())) }
     pub fn to_frac(&self) -> Line<Frac<T>> { Line::new((self.p.to_frac(), self.q.to_frac())) }
-    pub fn to_vector(&self) -> Point<T> { self.q - self.p }
-    pub fn from_segment(seg: &Segment<T>) -> Self { Self { p: seg.p, q: seg.q } }
-    pub fn from_halfline(hl: &HalfLine<T>) -> Self { Self { p: hl.p, q: hl.q } }
     pub fn contains(&self, p: Point<T>) -> bool { (p - self.p).is_parallel(self.q - self.p) }
     // 直線と直線との交点、Point<T> / det が答え
     pub fn cross_point_frac(&self, rhs: &Line<T>) -> Option<Point<Frac<T>>> {
@@ -402,6 +392,22 @@ impl<T: NumRing> PartialEq for Line<T> {
         self.contains(rhs.p) && self.contains(rhs.q)
     }
 }
+
+macro_rules! impl_lines { ($($ty:ty),*) => {$(
+    impl<T: NumRing> $ty {
+        pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
+        pub fn abs2(&self) -> T { self.to_vector().abs2() }
+        pub fn from_segment(seg: &Segment<T>) -> Self { Self { p: seg.p, q: seg.q } }
+        pub fn from_halfline(hl: &HalfLine<T>) -> Self { Self { p: hl.p, q: hl.q } }
+        pub fn from_line(line: &Line<T>) -> Self { Self { p: line.p, q: line.q } }
+        pub fn to_vector(&self) -> Point<T> { self.q - self.p }
+        pub fn to_segment(&self) -> Segment<T> { Segment { p: self.p, q: self.q } }
+        pub fn to_halfline(&self) -> HalfLine<T> { HalfLine { p: self.p, q: self.q } }
+        pub fn to_line(&self) -> Line<T> { Line { p: self.p, q: self.q } }
+    }
+)*};}
+
+impl_lines!(Segment<T>, HalfLine<T>, Line<T>);
 
 
 ///////////////////////////////////////////////////////////
@@ -511,21 +517,21 @@ mod tests {
         assert!(ob.contains(b));
         assert!(!ob.contains(a));
         assert!(!ob.contains(b * 5));
-        assert!(HalfLine::from_segment(&ob).contains(b * 5));
-        assert!(!HalfLine::from_segment(&ob).contains(-b));
-        assert!(Line::from_segment(&ob).contains(-b));
+        assert!(ob.to_halfline().contains(b * 5));
+        assert!(!ob.to_halfline().contains(-b));
+        assert!(ob.to_line().contains(-b));
         assert!(!ob.to_f64().contains(b.to_f64() / 2.0 + a.to_f64() * 0.01));
         assert!(!ob.to_f64().contains(b.to_f64() / 2.0 - a.to_f64() * 0.01));
         assert!(!ob.to_f64().contains(b.to_f64() * -0.01));
         assert!(!ob.to_f64().contains(b.to_f64() * 1.01));
 
         // 線分・直線・半直線と線分の交差判定
-        let oa_hl = HalfLine::from_segment(&oa);
-        let ac_hl = HalfLine::from_segment(&ac);
-        let ob_hl = HalfLine::from_segment(&ob);
-        let oa_l = Line::from_segment(&oa);
-        let ac_l = Line::from_segment(&ac);
-        let ob_l = Line::from_segment(&ob);
+        let oa_hl = oa.to_halfline();
+        let ac_hl = ac.to_halfline();
+        let ob_hl = ob.to_halfline();
+        let oa_l = oa.to_line();
+        let ac_l = ac.to_line();
+        let ob_l = ob.to_line();
         let ld = Point::new((-10, -10));
         let rd = Point::new((10, -10));
         let lu = Point::new((-10, 10));
