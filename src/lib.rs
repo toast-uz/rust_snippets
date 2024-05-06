@@ -5,4 +5,5 @@ pub mod union_find;
 pub mod kyopro_graph;
 pub mod kyopro_stats;
 pub mod heapmap;
+pub mod kyopro_num;
 pub mod kyopro_geometry;
