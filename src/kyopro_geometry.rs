@@ -2,155 +2,12 @@
 
 use std::ops::*;
 use std::fmt::Display;
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Frac<T> {
-    pub n: T,
-    pub d: T,
-}
-
-impl<T: NumRing> Frac<T> {
-    pub fn new(n: T, d: T) -> Self {
-        assert!(d != T::zero());
-        let g = n.gcd(d);
-        Self { n: (n / g).abs() * n.signum() * d.signum(), d: (d / g).abs() }
-    }
-    pub fn calc(&self) -> T { self.n / self.d }
-}
-
-impl<T: NumRing> Add for Frac<T> {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self {
-        let g = self.d.gcd(rhs.d);
-        let lcm = (self.d / g).checkked_mul(rhs.d);
-        let n = self.n.checkked_mul(lcm / self.d).checkked_add(rhs.n.checkked_mul(lcm / rhs.d));
-        Self::new(n, lcm)
-    }
-}
-impl<T: NumRing> Sub for Frac<T> {
-    type Output = Self;
-    fn sub(self, rhs: Self) -> Self {
-        let g = self.d.gcd(rhs.d);
-        let lcm = (self.d / g).checkked_mul(rhs.d);
-        let n = self.n.checkked_mul(lcm / self.d).checkked_sub(rhs.n.checkked_mul(lcm / rhs.d));
-        Self::new(n, lcm)
-    }
-}
-impl<T: NumRing> Mul for Frac<T> {
-    type Output = Self;
-    fn mul(self, rhs: Self) -> Self {
-        let g1 = self.n.gcd(rhs.d);
-        let g2 = rhs.n.gcd(self.d);
-        Self::new((self.n / g1).checkked_mul(rhs.n / g2), (self.d / g2).checkked_mul(rhs.d / g1))
-    }
-}
-impl<T: NumRing> Div for Frac<T> {
-    type Output = Self;
-    fn div(self, rhs: Self) -> Self {
-        let g1 = self.n.gcd(rhs.n);
-        let g2 = self.d.gcd(rhs.d);
-        Self::new((self.n / g1).checkked_mul(rhs.d / g2), (self.d / g2).checkked_mul(rhs.n / g1))
-    }
-}
-impl<T: NumRing> Neg for Frac<T> {
-    type Output = Self;
-    fn neg(self) -> Self { Self::new(-self.n, self.d) }
-}
-impl<T: NumRing> AddAssign for Frac<T> {
-    fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
-}
-impl<T: NumRing> PartialEq for Frac<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.n.checkked_mul(other.d) == self.d.checkked_mul(other.n)
-    }
-}
-impl<T: NumRing> PartialOrd for Frac<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { // avoid overflow
-        if self.d > T::zero() && other.d > T::zero() || self.d < T::zero() && other.d < T::zero() {
-            self.n.checkked_mul(other.d).partial_cmp(&self.d.checkked_mul(other.n))
-        } else {
-            self.d.checkked_mul(other.n).partial_cmp(&self.n.checkked_mul(other.d))
-        }
-    }
-}
-impl<T: NumRing> Display for Frac<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.n, self.d)
-    }
-}
-
-pub trait NumRing:
-    Default + Copy + std::fmt::Debug + Display
-    + PartialEq + PartialOrd
-    + Add<Output = Self> + Sub<Output = Self>
-    + Mul<Output = Self> + Div<Output = Self>
-    + Neg<Output = Self>
-{
-    fn zero() -> Self;
-    fn one() -> Self;
-    fn abs(&self) -> Self { if *self > Self::zero() { *self } else { -*self } }
-    fn gcd(&self, rhs: Self) -> Self;
-    fn signum(&self) -> Self { if *self > Self::zero() { Self::one() } else if *self < Self::zero() { -Self::one() } else { Self::zero() } }
-    fn to_f64(&self) -> f64;
-    fn to_isize(&self) -> isize;
-    fn to_frac(&self) -> Frac<Self> { Frac::new(*self, Self::one()) }
-    fn checkked_add(&self, rhs: Self) -> Self;
-    fn checkked_sub(&self, rhs: Self) -> Self;
-    fn checkked_mul(&self, rhs: Self) -> Self;
-}
-macro_rules! impl_numring_int { ($($ty:ty),*) => {$(
-    impl NumRing for $ty {
-        fn zero() -> Self { 0 }
-        fn one() -> Self { 1 }
-        fn gcd(&self, rhs: Self) -> Self {
-            let mut a = self.abs();
-            let mut b = rhs.abs();
-            while b != 0 {
-                let r = a % b;
-                a = b;
-                b = r;
-            }
-            a
-        }
-        fn to_f64(&self) -> f64 { *self as f64 }
-        fn to_isize(&self) -> isize { *self as isize }
-        fn checkked_add(&self, rhs: Self) -> Self { self.checked_add(rhs).unwrap_or_else(|| panic!("overflow by {} + {}", self, rhs)) }
-        fn checkked_sub(&self, rhs: Self) -> Self { self.checked_sub(rhs).unwrap_or_else(|| panic!("overflow by {} - {}", self, rhs)) }
-        fn checkked_mul(&self, rhs: Self) -> Self { self.checked_mul(rhs).unwrap_or_else(|| panic!("overflow by {} * {}", self, rhs)) }
-    }
-)*};}
-macro_rules! impl_numring_float { ($($ty:ty),*) => {$(
-    impl NumRing for $ty {
-        fn zero() -> Self { 0.0 }
-        fn one() -> Self { 1.0 }
-        fn gcd(&self, rhs: Self) -> Self { rhs.abs() }
-        fn to_f64(&self) -> f64 { *self as f64 }
-        fn to_isize(&self) -> isize { *self as isize }
-        fn checkked_add(&self, rhs: Self) -> Self { *self + rhs }   // no check
-        fn checkked_sub(&self, rhs: Self) -> Self { *self - rhs }   // no check
-        fn checkked_mul(&self, rhs: Self) -> Self { *self * rhs }   // no check
-    }
-)*};}
-impl<T: NumRing> NumRing for Frac<T> {
-    fn zero() -> Self { Frac::new(T::zero(), T::one()) }
-    fn one() -> Self { Frac::new(T::one(), T::one()) }
-    fn gcd(&self, rhs: Self) -> Self { rhs.abs() }
-    fn to_f64(&self) -> f64 { self.n.to_f64() / self.d.to_f64() }
-    fn to_isize(&self) -> isize { self.to_f64() as isize }
-    fn checkked_add(&self, rhs: Self) -> Self { *self + rhs }   // checkeed
-    fn checkked_sub(&self, rhs: Self) -> Self { *self - rhs }   // checkeed
-    fn checkked_mul(&self, rhs: Self) -> Self { *self * rhs }   // checkeed
-}
-
-impl_numring_int!(isize, i32, i64, i128);
-impl_numring_float!(f32, f64);
-
-type FracPoint<T> = (Point<T>, T);
+use crate::kyopro_num::*;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
 pub struct Point<T> (pub T, pub T);
 
-impl<T: NumRing> Point<T>{
+impl<T: Num> Point<T> {
     pub fn zero() -> Self { Self::default() }
     pub fn new((i, j): (T, T)) -> Self { Self (i, j) }
     pub fn abs2(&self) -> T { self.dot(*self) }
@@ -184,6 +41,9 @@ impl<T: NumRing> Point<T>{
     pub fn dot(&self, rhs: Self) -> T { self.0.checkked_mul(rhs.0).checkked_add(self.1.checkked_mul(rhs.1)) }
     pub fn det(&self, rhs: Self) -> T { self.0.checkked_mul(rhs.1).checkked_sub(rhs.0.checkked_mul(self.1)) }
     pub fn is_parallel(&self, rhs: Self) -> bool { self.det(rhs) == T::default() }
+}
+
+impl<T: Num + Neg<Output=T>> Point<T> {
     pub fn perpendicular(&self) -> Self { Self (-self.1, self.0) }
     pub fn perpendicular_line(&self, line: &Line<T>) -> Line<T> {
         assert!(line.p != line.q);
@@ -224,35 +84,35 @@ impl<T: NumRing> Point<T>{
     }
 }
 
-impl<T: NumRing> Point<Frac<T>> {
+impl<T: Num> Point<Frac<T>> {
     fn calc(&self) -> Point<T> { Point::new((self.0.calc(), self.1.calc())) }
 }
 
-impl<T: NumRing> Add for Point<T> {
+impl<T: Num> Add for Point<T> {
     type Output = Self;
     fn add(self, rhs: Self) -> Self { Self (self.0.checkked_add(rhs.0), self.1.checkked_add(rhs.1)) }
 }
-impl<T: NumRing> Sub for Point<T> {
+impl<T: Num> Sub for Point<T> {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self { Self (self.0.checkked_sub(rhs.0), self.1.checkked_sub(rhs.1)) }
 }
-impl<T: NumRing> Mul<T> for Point<T> {   // スカラー倍
+impl<T: Num> Mul<T> for Point<T> {   // スカラー倍
     type Output = Self;
     fn mul(self, scalar: T) -> Self { Self (self.0.checkked_mul(scalar), self.1.checkked_mul(scalar)) }
 }
-impl<T: NumRing> Div<T> for Point<T> {   // スカラー分の1
+impl<T: Num> Div<T> for Point<T> {   // スカラー分の1
     type Output = Self;
     fn div(self, scalar: T) -> Self { Self (self.0 / scalar, self.1 / scalar) }
 }
-impl<T: NumRing> AddAssign for Point<T> {
+impl<T: Num> AddAssign for Point<T> {
     fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
 }
-impl<T: NumRing> Neg for Point<T> {
+impl<T: Num + Neg<Output=T>> Neg for Point<T> {
     type Output = Self;
     fn neg(self) -> Self { Self ( -self.0, -self.1) }
 }
 
-impl<T: NumRing> Display for Point<T> {
+impl<T: Num> Display for Point<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}, {})", self.0, self.1)
     }
@@ -270,7 +130,7 @@ pub struct Segment<T> {
     pub p: Point<T>, pub q: Point<T>,
 }
 
-impl<T: NumRing> Segment<T> {
+impl<T: Num> Segment<T> {
     pub fn to_f64(&self) -> Segment<f64> { Segment::new((self.p.to_f64(), self.q.to_f64())) }
     pub fn to_isize(&self) -> Segment<isize> { Segment::new((self.p.to_isize(), self.q.to_isize())) }
     pub fn to_frac(&self) -> Segment<Frac<T>> { Segment::new((self.p.to_frac(), self.q.to_frac())) }
@@ -320,6 +180,9 @@ impl<T: NumRing> Segment<T> {
     pub fn cross_point_with_line(&self, line: &Line<T>) -> Option<Point<T>> {
         self.cross_point_with_line_frac(line).and_then(|r| Some(r.calc()))
     }
+}
+
+impl<T: Num + Neg<Output=T>> Segment<T> {
     // 線分と線分との距離
     pub fn dist2_frac(&self, rhs: &Segment<T>) -> Frac<T> {
         if self.cross(rhs) { return Frac::zero(); }
@@ -334,7 +197,7 @@ impl<T: NumRing> Segment<T> {
 }
 
 // 向きが反対でも同じとみなす
-impl<T: NumRing> PartialEq for Segment<T> {
+impl<T: Num> PartialEq for Segment<T> {
     fn eq(&self, rhs: &Self) -> bool {
         (self.p == rhs.p && self.q == rhs.q)
         || (self.p == rhs.q && self.q == rhs.p)
@@ -347,7 +210,7 @@ pub struct HalfLine<T> {
     pub p: Point<T>, pub q: Point<T>,
 }
 
-impl<T: NumRing> HalfLine<T> {
+impl<T: Num> HalfLine<T> {
     pub fn to_f64(&self) -> HalfLine<f64> { HalfLine::new((self.p.to_f64(), self.q.to_f64())) }
     pub fn to_isize(&self) -> HalfLine<isize> { HalfLine::new((self.p.to_isize(), self.q.to_isize())) }
     pub fn to_frac(&self) -> HalfLine<Frac<T>> { HalfLine::new((self.p.to_frac(), self.q.to_frac())) }
@@ -357,7 +220,7 @@ impl<T: NumRing> HalfLine<T> {
 }
 
 // 起点と向きが同じであれば同じとみなす
-impl<T: NumRing> PartialEq for HalfLine<T> {
+impl<T: Num> PartialEq for HalfLine<T> {
     fn eq(&self, rhs: &Self) -> bool {
         self.p == rhs.p && (self.q - self.p).is_parallel(rhs.q - rhs.p)
     }
@@ -368,7 +231,7 @@ pub struct Line<T> {
     pub p: Point<T>, pub q: Point<T>,
 }
 
-impl<T: NumRing> Line<T> {
+impl<T: Num> Line<T> {
     pub fn to_f64(&self) -> Line<f64> { Line::new((self.p.to_f64(), self.q.to_f64())) }
     pub fn to_isize(&self) -> Line<isize> { Line::new((self.p.to_isize(), self.q.to_isize())) }
     pub fn to_frac(&self) -> Line<Frac<T>> { Line::new((self.p.to_frac(), self.q.to_frac())) }
@@ -387,14 +250,14 @@ impl<T: NumRing> Line<T> {
 }
 
 // 同一直線上にあれば同じとみなす
-impl<T: NumRing> PartialEq for Line<T> {
+impl<T: Num> PartialEq for Line<T> {
     fn eq(&self, rhs: &Self) -> bool {
         self.contains(rhs.p) && self.contains(rhs.q)
     }
 }
 
 macro_rules! impl_lines { ($($ty:ty),*) => {$(
-    impl<T: NumRing> $ty {
+    impl<T: Num> $ty {
         pub fn new((p, q): (Point<T>, Point<T>)) -> Self { Self { p, q } }
         pub fn abs2(&self) -> T { self.to_vector().abs2() }
         pub fn from_segment(seg: &Segment<T>) -> Self { Self { p: seg.p, q: seg.q } }
