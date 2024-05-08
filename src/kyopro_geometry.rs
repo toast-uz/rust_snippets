@@ -281,56 +281,8 @@ impl_lines!(Segment<T>, HalfLine<T>, Line<T>);
 mod tests {
     use super::*;
 
-    macro_rules! eq_f64 { ($a:expr, $b:expr) => { ($a - $b).abs() < 1.0e-9 }; }
-    macro_rules! assert_eq_f64 { ($a:expr, $b:expr) => { assert!(eq_f64!($a, $b), "left: {} != right: {}", $a, $b) }; }
-
-    #[test]
-    fn frac() {
-        let o = Frac::zero();
-        let a = Frac::new(1, 2);
-        let b = Frac::new(3, 4);
-        assert_eq!(o + o, o);
-        assert_eq!(o * o, o);
-        assert_eq!(a + b, Frac::new(5, 4));
-        assert_eq!(a - b, Frac::new(-1, 4));
-        assert_eq!(a * b, Frac::new(3, 8));
-        assert_eq!(a / b, Frac::new(2, 3));
-        assert_eq!(-a, Frac::new(-1, 2));
-        assert_eq!(a + 1.to_frac(), Frac::new(3, 2));
-        assert_eq!(a - 1.to_frac(), Frac::new(-1, 2));
-        assert_eq!(a * 2.to_frac(), Frac::new(1, 1));
-        assert_eq!(a / 2.to_frac(), Frac::new(1, 4));
-        let a_ = Frac::new(-1, -2);
-        let a__ = Frac { n: -1, d: -2 };
-        assert_eq!(a.n, a_.n);
-        assert_ne!(a.n, a__.n);
-        assert_eq!(a, a_);
-        assert_eq!(a, a__);
-        assert!(a < b);
-        assert!(a__ < b);
-        assert!(o < a);
-        assert!(o < a__);
-        assert!(a <= a);
-        assert!(a <= a__);
-        assert!(a__ <= a);
-        assert!(a >= a);
-        assert!(a >= a__);
-        assert!(a__ >= a);
-        assert!(-a <= -a);
-        assert!(-a >= -a__);
-        assert!(-a__ <= -a);
-        assert!(-a <= -a);
-        assert!(-a <= -a__);
-        assert!(-a__ <= -a);
-        assert!(-b < -a);
-        assert!(-b < -a__);
-        assert!(-a < o);
-        assert!(-a__ < o);
-        assert_eq!(a.to_f64(), 0.5);
-        assert_eq!(a.calc(), 0);
-        let o = Frac::<f64>::zero();
-        assert_eq!(o + o, o);
-        assert_eq!(o * o, o);
+    macro_rules! assert_eq_f64 {
+        ($a:expr, $b:expr) => { assert!(($a - $b).abs() < 1e-9); };
     }
 
     #[test]

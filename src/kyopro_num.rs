@@ -96,7 +96,14 @@ impl<T: Num> Sub for Frac<T> {
         Self::new(n, lcm)
     }
 }
-impl<T: Num> Mul for Frac<T> {
+impl<T: Num> Mul<T> for Frac<T> {
+    type Output = Self;
+    fn mul(self, rhs: T) -> Self {
+        let g = self.d.gcd(rhs);
+        Self::new(self.n.checkked_mul(rhs / g), self.d / g)
+    }
+}
+impl<T: Num> Mul<Frac<T>> for Frac<T> {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self {
         let g1 = self.n.gcd(rhs.d);
@@ -104,7 +111,14 @@ impl<T: Num> Mul for Frac<T> {
         Self::new((self.n / g1).checkked_mul(rhs.n / g2), (self.d / g2).checkked_mul(rhs.d / g1))
     }
 }
-impl<T: Num> Div for Frac<T> {
+impl<T: Num> Div<T> for Frac<T> {
+    type Output = Self;
+    fn div(self, rhs: T) -> Self {
+        let g = self.d.gcd(rhs);
+        Self::new(self.n.checkked_mul(rhs / g), self.d / g)
+    }
+}
+impl<T: Num> Div<Frac<T>> for Frac<T> {
     type Output = Self;
     fn div(self, rhs: Self) -> Self {
         let g1 = self.n.gcd(rhs.n);
@@ -148,4 +162,66 @@ impl<T: Num> Num for Frac<T> {
     fn checkked_add(&self, rhs: Self) -> Self { *self + rhs }   // checkeed
     fn checkked_sub(&self, rhs: Self) -> Self { *self - rhs }   // checkeed
     fn checkked_mul(&self, rhs: Self) -> Self { *self * rhs }   // checkeed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn frac() {
+        let o = Frac::zero();
+        let a = Frac::new(1, 2);
+        let b = Frac::new(3, 4);
+        assert_eq!(o + o, o);
+        assert_eq!(o * o, o);
+        assert_eq!(a + b, Frac::new(5, 4));
+        assert_eq!(a - b, Frac::new(-1, 4));
+        assert_eq!(a * b, Frac::new(3, 8));
+        assert_eq!(a / b, Frac::new(2, 3));
+        assert_eq!(-a, Frac::new(-1, 2));
+        assert_eq!(a + 1.to_frac(), Frac::new(3, 2));
+        assert_eq!(a - 1.to_frac(), Frac::new(-1, 2));
+        assert_eq!(a * 2.to_frac(), Frac::new(1, 1));
+        assert_eq!(a / 2.to_frac(), Frac::new(1, 4));
+        let a_ = Frac::new(-1, -2);
+        let a__ = Frac { n: -1, d: -2 };
+        assert_eq!(a.n, a_.n);
+        assert_ne!(a.n, a__.n);
+        assert_eq!(a, a_);
+        assert_eq!(a, a__);
+        assert!(a < b);
+        assert!(a__ < b);
+        assert!(o < a);
+        assert!(o < a__);
+        assert!(a <= a);
+        assert!(a <= a__);
+        assert!(a__ <= a);
+        assert!(a >= a);
+        assert!(a >= a__);
+        assert!(a__ >= a);
+        assert!(-a <= -a);
+        assert!(-a >= -a__);
+        assert!(-a__ <= -a);
+        assert!(-a <= -a);
+        assert!(-a <= -a__);
+        assert!(-a__ <= -a);
+        assert!(-b < -a);
+        assert!(-b < -a__);
+        assert!(-a < o);
+        assert!(-a__ < o);
+        assert_eq!(a.to_f64(), 0.5);
+        assert_eq!(a.calc(), 0);
+        let o = Frac::<f64>::zero();
+        assert_eq!(o + o, o);
+        assert_eq!(o * o, o);
+        let o = Frac::zero();
+        assert_eq!(a + o, a);
+        assert_eq!(a * o, o);
+        assert_eq!(a * 5, a + a + a + a + a);
+        let e = 1;
+        assert_eq!(a * e, a);
+        assert_eq!(a / e, a);
+        assert_eq!(a * e * e, a);
+        assert_eq!((a / a).to_isize(), e);
+    }
 }
