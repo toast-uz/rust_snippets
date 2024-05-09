@@ -234,6 +234,7 @@ mod tests {
         assert_eq!(a / e, a);
         assert_eq!(a * e * e, a);
         assert_eq!((a / a).to_isize(), e);
-        assert_eq!(e.to_frac() / 3 * 3, e);
+        assert_ne!(0.1 + 0.2, 0.3); // 誤差が出るため等しくならない
+        assert_eq!(Frac::new(1, 10) + Frac::new(1, 5), Frac::new(3, 10));   // 正しく計算できる
     }
 }
