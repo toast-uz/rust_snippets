@@ -96,26 +96,12 @@ impl<T: Num> Sub for Frac<T> {
         Self::new(n, lcm)
     }
 }
-impl<T: Num> Mul<T> for Frac<T> {
-    type Output = Self;
-    fn mul(self, rhs: T) -> Self {
-        let g = self.d.gcd(rhs);
-        Self::new(self.n.checkked_mul(rhs / g), self.d / g)
-    }
-}
 impl<T: Num> Mul<Frac<T>> for Frac<T> {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self {
         let g1 = self.n.gcd(rhs.d);
         let g2 = rhs.n.gcd(self.d);
         Self::new((self.n / g1).checkked_mul(rhs.n / g2), (self.d / g2).checkked_mul(rhs.d / g1))
-    }
-}
-impl<T: Num> Div<T> for Frac<T> {
-    type Output = Self;
-    fn div(self, rhs: T) -> Self {
-        let g = self.d.gcd(rhs);
-        Self::new(self.n.checkked_mul(rhs / g), self.d / g)
     }
 }
 impl<T: Num> Div<Frac<T>> for Frac<T> {
@@ -130,15 +116,37 @@ impl<T: Num + Neg<Output=T>> Neg for Frac<T> {
     type Output = Self;
     fn neg(self) -> Self { Self::new(-self.n, self.d) }
 }
-impl<T: Num> AddAssign for Frac<T> {
+impl<T: Num> AddAssign<Frac<T>> for Frac<T> {
     fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
 }
-impl<T: Num> PartialEq for Frac<T> {
+impl<T: Num> Add<T> for Frac<T> {
+    type Output = Self;
+    fn add(self, rhs: T) -> Self { self + rhs.to_frac() }
+}
+impl<T: Num> Sub<T> for Frac<T> {
+    type Output = Self;
+    fn sub(self, rhs: T) -> Self { self - rhs.to_frac() }
+}
+impl<T: Num> Mul<T> for Frac<T> {
+    type Output = Self;
+    fn mul(self, rhs: T) -> Self { self * rhs.to_frac() }
+}
+impl<T: Num> Div<T> for Frac<T> {
+    type Output = Self;
+    fn div(self, rhs: T) -> Self { self / rhs.to_frac() }
+}
+impl<T: Num> AddAssign<T> for Frac<T> {
+    fn add_assign(&mut self, rhs: T) { *self += rhs.to_frac() }
+}
+impl<T: Num> PartialEq<Frac<T>> for Frac<T> {
     fn eq(&self, other: &Self) -> bool {
         self.n.checkked_mul(other.d) == self.d.checkked_mul(other.n)
     }
 }
-impl<T: Num> PartialOrd for Frac<T> {
+impl<T: Num> PartialEq<T> for Frac<T> {
+    fn eq(&self, other: &T) -> bool { *self == other.to_frac() }
+}
+impl<T: Num> PartialOrd<Frac<T>> for Frac<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { // avoid overflow
         if self.d > T::zero() && other.d > T::zero() || self.d < T::zero() && other.d < T::zero() {
             self.n.checkked_mul(other.d).partial_cmp(&self.d.checkked_mul(other.n))
@@ -146,6 +154,9 @@ impl<T: Num> PartialOrd for Frac<T> {
             self.d.checkked_mul(other.n).partial_cmp(&self.n.checkked_mul(other.d))
         }
     }
+}
+impl<T: Num> PartialOrd<T> for Frac<T> {
+    fn partial_cmp(&self, other: &T) -> Option<std::cmp::Ordering> { self.partial_cmp(&other.to_frac()) }
 }
 impl<T: Num> Display for Frac<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -212,16 +223,17 @@ mod tests {
         assert_eq!(a.to_f64(), 0.5);
         assert_eq!(a.calc(), 0);
         let o = Frac::<f64>::zero();
-        assert_eq!(o + o, o);
-        assert_eq!(o * o, o);
+        assert_eq!(o + 0.0, 0.0);
+        assert_eq!(o * 0.0, 0.0);
         let o = Frac::zero();
         assert_eq!(a + o, a);
-        assert_eq!(a * o, o);
-        assert_eq!(a * 5, a + a + a + a + a);
+        assert_eq!(a * 0, 0);
+        assert_eq!(a * 6, 3);
         let e = 1;
         assert_eq!(a * e, a);
         assert_eq!(a / e, a);
         assert_eq!(a * e * e, a);
         assert_eq!((a / a).to_isize(), e);
+        assert_eq!(e.to_frac() / 3 * 3, e);
     }
 }
