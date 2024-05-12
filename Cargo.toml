@@ -74,3 +74,7 @@ rustc-hash = "=1.1.0"
 [[bin]]
 name = "ahc_template_sa"
 path = "src/ahc_template_sa.rs"
+
+[[bin]]
+name = "ahc_template_bs"
+path = "src/ahc_template_bs.rs"
