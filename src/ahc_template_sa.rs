@@ -118,12 +118,12 @@ impl Agent {
             }
             // 遷移候補を決めて、遷移した場合のコスト差分を計算する
             let neighbor = self.select_neighbor(e, rng);
-            let score_diff = self.compute_score_diff(e, neighbor);
+            let score_diff = self.compute_score_diff(e, &neighbor);
             // スコアが高いほど良い場合
             // スコアが低いほど良い場合はprob < rng.gen()とする
             let prob = (score_diff as f64 / temp).exp();
             if prob > rng.gen() || neighbor.forced() { // 確率prob or 強制近傍か で遷移する
-                self.transfer_neighbor(e, neighbor);
+                self.transfer_neighbor(e, &neighbor);
                 self.score += score_diff;
                 // スコアが高いほど良い場合
                 // スコアが低いほど良い場合は self.score < best.score とする
@@ -150,7 +150,7 @@ impl Agent {
     }
 
     // 指定された近傍に遷移する
-    fn transfer_neighbor(&mut self, _e: &Env, neighbor: Neighbor) {
+    fn transfer_neighbor(&mut self, _e: &Env, neighbor: &Neighbor) {
         // 近傍遷移
         match neighbor {
             Neighbor::Swap(_a, _b) => (),
@@ -164,7 +164,7 @@ impl Agent {
     // 2) selfを遷移させて、フル計算し、その後、selfを逆遷移させる
     // 3) 差分計算をする
     // 3)の場合は、1)のコードを最初は残して、結果を照合する
-    fn compute_score_diff(&self, e: &Env, neighbor: Neighbor) -> isize {
+    fn compute_score_diff(&self, e: &Env, neighbor: &Neighbor) -> isize {
         // 1) 差分計算をしない場合の実装
         let score_old = self.score;
         let mut new_state = self.clone();
@@ -185,7 +185,7 @@ impl Agent {
 }
 
 // 近傍識別
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Neighbor {
     Swap(usize, usize), // aとbを交換
     None,
