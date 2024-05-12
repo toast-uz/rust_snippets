@@ -8,10 +8,8 @@
 
 use std::time::Instant;
 use proconio::input;
-use proconio::marker::Usize1;
-use itertools::Itertools;
+//use itertools::Itertools;
 use heapmap::*;
-use fixedbitset::FixedBitSet;
 //use rustc_hash::FxHashMap as HashMap;
 
 const MAX_BEAM_WIDTH: usize = 30000;
@@ -36,12 +34,12 @@ fn main() {
     a.beam_search(&e);
     println!("{}", a.result(&e));
     dbg!("counter = {}", a.counter);
-    dbg!("Computed_score = {}", a.score);
+    dbg!("Computed_score = {}", a.best_state.score);
 }
 
 #[derive(Debug, Clone, Default)]
 struct Env {
-    t: usize,
+    t: usize,   // ターン数
 }
 
 impl Env {
@@ -63,7 +61,7 @@ impl Env {
 
 #[derive(Debug, Clone, Default)]
 struct Agent {
-    score: isize,
+    best_state: State,
     counter: usize,
 }
 
@@ -73,7 +71,7 @@ impl Agent {
     #[allow(dead_code)]
     fn beam_search(&mut self, e: &Env) {
         // 初期状態を登録
-        let mut todo = vec![State::default(e)];
+        let mut todo = vec![State::default()];
         // ビームサーチ
         for t in 0..e.t {
             let mut next_todo = Vec::new();
@@ -99,15 +97,14 @@ impl Agent {
             next_todo.truncate(MAX_BEAM_WIDTH);
             todo = next_todo;   // reverseしない　->　popはスコアが小さい順に取り出す
         }
-        self.ans = todo[0].ans.clone();
-        self.score = todo[0].score;
+        self.best_state = todo[0].clone();
     }
 
     #[allow(dead_code)]
     fn chokudai_search(&mut self, e: &Env, timer: &Instant, limit: f64) {
         // 初期状態を登録
         let mut todo = vec![HeapMap::new(false); e.t + 1];
-        todo[0].push((0, State::default(e)));
+        todo[0].push((0, State::default()));
         // chokudaiサーチ
         'outer: loop { for t in 0..e.t { for _ in 0..CHOKUDAI_WIDTH {
             if timer.elapsed().as_secs_f64() > limit { break 'outer; }
@@ -120,13 +117,11 @@ impl Agent {
                 todo[t + 1].push((next_state.score, next_state));
             }
         } } }
-        let goal = todo[e.t].pop().unwrap().1;
-        self.ans = goal.ans.clone();
-        self.score = goal.score;
+        self.best_state = todo[e.t].pop().unwrap().1;
     }
 
     // 結果出力
-    fn result(&self, e: &Env) -> String {
+    fn result(&self, _e: &Env) -> String {
         "".to_string()
     }
 }
@@ -134,34 +129,17 @@ impl Agent {
 #[derive(Debug, Clone, Default)]
 struct State {
     score: isize,
-    score_diff: isize,
 }
 
 impl State {
-    fn new(score: isize, score_diff: isize) -> Self {
-        Self { score, score_diff }
+    fn new(score: isize) -> Self {
+        Self { score }
     }
 
-    fn default(e: &Env) -> Self {
-        let mut ans = FixedBitSet::with_capacity(e.t);
-        ans.clear();
-        Self::new(ans, 0)
-    }
-
-    fn neighbors(&self, e: &Env, t: usize) -> Vec<Self> {
+    fn neighbors(&self, _e: &Env, _t: usize) -> Vec<Self> {
         let mut res = Vec::new();
-        let score_diff_org = self.score_diff - e.pqr[t]
-            .iter().filter(|&&x| self.list[x] == 0).count() as isize;
-        for d in [1, -1] {
-            let mut list = self.list.clone();
-            e.pqr[t].iter().for_each(|&x| list[x] += d);
-            let score_diff = score_diff_org + e.pqr[t]
-                .iter().filter(|&&x| list[x] == 0).count() as isize;
-            let score = self.score + score_diff;
-            let mut ans = self.ans.clone();
-            if d == 1 { ans.insert(t); }
-            res.push(State::new(score, score_diff));
-        }
+        // 次の状態を列挙してresちpushする
+        res.push(Self::new(0));
         res
     }
 }
