@@ -22,7 +22,7 @@ pub trait Num:
     fn checkked_mul(&self, rhs: Self) -> Self;
 }
 
-macro_rules! impl_numring_int { ($($ty:ty),*) => {$(
+macro_rules! impl_num_int { ($($ty:ty),*) => {$(
     impl Num for $ty {
         fn zero() -> Self { 0 }
         fn one() -> Self { 1 }
@@ -44,7 +44,7 @@ macro_rules! impl_numring_int { ($($ty:ty),*) => {$(
         fn checkked_mul(&self, rhs: Self) -> Self { self.checked_mul(rhs).unwrap_or_else(|| panic!("overflow by {} * {}", self, rhs)) }
     }
 )*};}
-macro_rules! impl_numring_float { ($($ty:ty),*) => {$(
+macro_rules! impl_num_float { ($($ty:ty),*) => {$(
     impl Num for $ty {
         fn zero() -> Self { 0.0 }
         fn one() -> Self { 1.0 }
@@ -60,8 +60,8 @@ macro_rules! impl_numring_float { ($($ty:ty),*) => {$(
     }
 )*};}
 
-impl_numring_int!(isize, i32, i64, i128, usize, u32, u64, u128);
-impl_numring_float!(f32, f64);
+impl_num_int!(isize, i32, i64, i128, usize, u32, u64, u128);
+impl_num_float!(f32, f64);
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Frac<T> {
