@@ -120,9 +120,9 @@ impl Agent {
             let neighbor = self.select_neighbor(e, rng);
             let score_diff = self.compute_score_diff(e, &neighbor);
             // スコアが高いほど良い場合
-            // スコアが低いほど良い場合は-score_diffとする
+            // スコアが低いほど良い場合は-score_diff、score_diff <= 0 とする
             let prob = (score_diff as f64 / temp).exp();
-            if prob > rng.gen() || neighbor.forced() { // 確率prob or 強制近傍か で遷移する
+            if score_diff >= 0 || prob > rng.gen() || neighbor.forced() { // 確率prob or 強制近傍か で遷移する
                 self.transfer_neighbor(e, &neighbor);
                 self.score += score_diff;
                 // スコアが高いほど良い場合
