@@ -65,6 +65,7 @@ impl UnionFind {
         if let Some((x, y)) = self.history.pop() { self.parents[x] = y; }
         if let Some((x, y)) = self.history.pop() { self.parents[x] = y; }
     }
+    pub fn undo_all(&mut self) { while !self.history.is_empty() { self.undo(); } }
     pub fn clear_history(&mut self) { self.history = Vec::new(); }
     // 同じ木に属するか  O(α(N))
     pub fn same(&mut self, x: usize, y: usize) -> bool { self.root(x) == self.root(y) }
