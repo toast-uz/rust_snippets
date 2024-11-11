@@ -1,3 +1,5 @@
+// 木上のビームサーチのテンプレート
+
 use std::time::Instant;
 use std::cmp::Reverse;
 use proconio::input;
