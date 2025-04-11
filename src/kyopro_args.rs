@@ -29,6 +29,12 @@ pub mod os_env {
         let name = format!("{}{}", PREFIX, name.to_uppercase());
         std::env::var(name).ok()?.parse().ok()
     }
+    pub fn get_wo_prefix<T: std::str::FromStr>(name: &str) -> Option<T> {
+        std::env::var(name).ok()?.parse().ok()
+    }
+    pub fn atcoder() -> bool {
+        get_wo_prefix::<usize>("atcoder").unwrap_or(0) == 1
+    }
 }
 
 fn main() {
