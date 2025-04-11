@@ -84,7 +84,7 @@ impl XorshiftRng {
     }
     // 正規分布に従う乱数を求める
     pub fn gen_gaussian(&mut self, mu: f64, sigma: f64) -> f64 {
-        norm::cdf(self.gen(), mu, sigma)
+        norm::ppf(self.gen(), mu, sigma)
     }
     // u64の乱数を求める
     pub fn gen_u64(&mut self) -> u64 {
