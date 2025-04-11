@@ -82,6 +82,15 @@ impl UnionFind {
     pub fn roots(&self) -> HashSet<usize> {
         (0..self.parents.len()).filter(|&x| self.is_root(x)).collect()
     }
+    // 木のグループの列挙 O(α(N))
+    pub fn groups(&self) -> Vec<HashSet<usize>> {
+        let mut res: HashMap<usize, HashSet<usize>> = HashMap::default();
+        for i in 0..self.parents.len() {
+            let root = self.root_wo_compress(i);
+            res.entry(root).or_default().insert(i);
+        }
+        res.into_iter().map(|(_, v)| v).collect()
+    }
     // historyをもとに、木の根の減少差分を求める
     pub fn roots_diff(&self) -> HashSet<usize> {
         self.history.iter().map(|&(x, _)| x)
