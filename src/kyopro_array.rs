@@ -557,4 +557,22 @@ mod tests {
         sparse_result3.apply_inplace(&mut y);
         assert_eq!(y, vec!["Durian", "Apple", "Banana", "Cherry"]);
     }
+
+    #[test]
+    fn test_tsp() {
+        let n = 20;
+        // 0ではじまりnで終わる、間がシャッフルされている数列を作る
+        let mut x = (1..n).collect_vec();
+        let mut rng = xorshift_rng();
+        x.shuffle(&mut rng);
+        x.insert(0, 0);
+        x.push(n);
+        let y = (0..=n).collect_vec();
+
+        let cost_f = |a: &i32, b: &i32| (a - b).abs() as isize;
+        x.tsp_exact(&cost_f);
+        assert_eq!(x, y);
+        x.tsp_climb(&cost_f, 1000000, 1000, &mut xorshift_rng());
+        assert_eq!(x, y);
+    }
 }
