@@ -5,15 +5,13 @@ AHC共通テンプレート
 # 目的
 
 - AtCoder Heuristic Contest (AHC) 系の問題において、
-  自明解 → 貪欲 → 焼きなまし/ビームサーチ という発展的なアルゴリズム開発を、
+  自明解 → 貪欲 → 焼きなまし/ビームサーチという段階的なアルゴリズム開発を、
   型安全かつ再利用可能な形で支援することを目的とする
 
 # 特徴
 
 - 問題依存処理と共通処理を分離することで再利用性を高める
-  - 問題依存処理は前半に、共通処理は後半にまとめておく
 - AHCの実装スタイルを整理し、段階的な改良を促す
-　- 問題依存処理は、上から順に実装していく
 
 */
 
@@ -126,19 +124,20 @@ impl Solver {
     fn make_output(&self, _e: &Env) -> String { String::new() } // 出力を作成する
 }
 
-// 以上を実装したら、SOLVER_INITをTrivialに変更する
+// [2-4] 以上を実装したら、SOLVER_INITをTrivialに変更する
 
 // --------------------------------------------------------------------
 // [3] 貪欲法を実装する
 // --------------------------------------------------------------------
 
-// [3-1] 貪欲法固有の環境定義
+// [3-1] 貪欲法固有の環境を定義する
 impl Env {
     fn init_greedy(&mut self) {
         self.max_depth = 100; // 深さの上限
     }
 }
 
+// [3-2] シンプルな状態と操作の変換を定義する
 impl State {
     fn get_next_greedy_op(&self, _e: &Env) -> Op {
         // 貪欲法の次の操作を決定する
@@ -149,6 +148,7 @@ impl State {
     }
 }
 
+// [3-3] ソルバーに操作と状態を保存するメソッドを追加する
 impl Solver {
     fn save_ops(&mut self, _e: &Env, _ops: Vec<Op>) {
         // 操作を登録する
@@ -158,18 +158,14 @@ impl Solver {
     }
 }
 
-// 以上を実装したら、SOLVER_INITをGreedyに変更する
+// [3-4] 以上を実装したら、SOLVER_INITをGreedyに変更する
 
 // --------------------------------------------------------------------
-// [4] 高度なアルゴリズムを実装する
+// [4] 高度なアルゴリズム:ビームサーチを実装する
 // 文脈が強ければビームサーチを、文脈が弱ければ焼きなまし法を選択する
 // --------------------------------------------------------------------
 
-// --------------------------------------------------------------------
-// [4-A] ビームサーチを実装する
-// --------------------------------------------------------------------
-
-// [4-A-1] ビームサーチ固有の環境定義
+// [4-1] ビームサーチ固有の環境を定義する
 impl Env {
     fn init_beam(&mut self) {
         self.beam_width_init = 1; // ビームの幅（初期値）
@@ -180,11 +176,11 @@ impl Env {
     }
 }
 
-// [4-A-2] Stateへのメソッドの追加
+// [4-2] 状態と操作の変換を追加する
 impl State {
     #[inline]
     // 前の状態のIDを取得する
-    fn get_op(&self) -> Option<&Op> {
+    fn get_prev_op(&self) -> Option<&Op> {
         None
     }
     //次の操作を列挙する
@@ -193,15 +189,15 @@ impl State {
     }
 }
 
-// 以上を実装したら、SOLVER_MAINをBeamに変更する
-// [4-A-3] ビーム幅を1固定にして、ビームサーチを実行して結果を確認する
-// [4-A-4] ビーム幅を調整する
+// [4-3] 以上を実装したら、SOLVER_MAINをBeamに変更する
+// [4-4] ビーム幅を1固定にして、ビームサーチを実行して結果を確認する
+// [4-5] ビーム幅を調整する
 
 // --------------------------------------------------------------------
-// [4-B] 焼きなまし法を実装する
+// [5] 高度なアルゴリズム:焼きなまし法を実装する
 // --------------------------------------------------------------------
 
-// [4-B-1] 焼きなまし固有の環境定義
+// [5-1] 焼きなまし固有の環境を定義する
 impl Env {
     fn init_annealing(&mut self) {
         self.sa_start_temp = 1000.0; // 初期温度
@@ -213,17 +209,16 @@ impl Env {
     }
 }
 
-// [4-B-2] 遷移候補を定義
+// [5-2] 近傍遷移を定義する
 #[derive(Debug)]
 #[allow(dead_code)]
 enum Transition {
-    // 遷移候補を定義する
     // 例: Swap(usize, usize),
     // 例: Insert(usize, usize),
     Swap(usize, usize),
 }
 
-// [4-B-3] StateにTransition関連のメソッドを追加
+// [5-3] 状態と近傍遷移の変換を定義する
 impl State {
     fn choose_transition(&self, _e: &Env, _rng: &mut impl rand::Rng) -> Transition {
         // 遷移候補を決定する
@@ -254,10 +249,10 @@ impl Solver {
     }
 }
 
-// 以上を実装したら、SOLVER_MAINをAnnealingに変更する
-// [4-B-4] 焼きなまし法を実行して結果を確認する
-// [4-B-5] 遷移候補を増やしてみる
-// [4-B-6] 焼きなまし法の差分計算を実装する
+// [5-4] 以上を実装したら、SOLVER_MAINをAnnealingに変更する
+// [5-5] 焼きなまし法を実行して結果を確認する
+// [5-6] 遷移候補を増やしてみる
+// [5-7] 制限時間を伸ばして結果が改善するなら、差分計算を実装する
 
 // ------------------------------------------------------
 // サポートライブラリ
@@ -268,7 +263,7 @@ fn main() {
     let timer = Instant::now();
     let e = Env::new();
     let mut solver = Solver::new(&e);
-    solver.solve(&e, &timer, LIMIT);
+    solver.run(&e, &timer, LIMIT);
     println!("{}", solver.make_output(&e));
 }
 
@@ -293,7 +288,7 @@ impl Env {
 
 #[derive(Debug)]
 #[allow(dead_code)]
-enum SolverState { Trivial, Greedy, Beam, Annealing, None }
+enum SolverState { Trivial, Greedy, Beam, Anneal, None }
 
 // ソルバーの基本実装
 impl Solver {
@@ -308,11 +303,11 @@ impl Solver {
         solver.score = solver.compute_score(e);
         solver
     }
-    fn solve(&mut self, e: &Env, timer: &Instant, limit: f64) {
+    fn run(&mut self, e: &Env, timer: &Instant, limit: f64) {
         // メインソルバーの実行
         match SOLVER_MAIN {
             SolverState::Beam => self.solve_beam(e, timer, limit), // ビームサーチ
-            SolverState::Annealing  => self.solve_anealing(e, timer, limit),  // 焼きなまし法
+            SolverState::Anneal  => self.solve_aneal(e, timer, limit),  // 焼きなまし法
             SolverState::None => {}
             _ => panic!("Invalid SOLVER_MAIN: {:?}", SOLVER_MAIN),
         }
@@ -368,9 +363,9 @@ impl Solver {
         // ビームを復元する
         let mut depth = e.max_depth;
         let mut best_id = beam[depth].iter().enumerate()
-            .max_by_key(|&(_, state)| state.get_op().unwrap().score).unwrap().0;
+            .max_by_key(|&(_, state)| state.get_prev_op().unwrap().score).unwrap().0;
         let mut ops = Vec::new();
-        while let Some(op) = beam[depth][best_id].get_op() {
+        while let Some(op) = beam[depth][best_id].get_prev_op() {
             ops.push(op.clone());
             best_id = op.pre_id;
             depth -= 1;
@@ -381,7 +376,7 @@ impl Solver {
 
 // 焼きなまし法の実装
 impl Solver {
-    fn solve_anealing(&mut self, e: &Env, timer: &Instant, limit: f64) {
+    fn solve_aneal(&mut self, e: &Env, timer: &Instant, limit: f64) {
         let start_time = timer.elapsed().as_secs_f64();
         let mut temp = e.sa_start_temp; // 初期温度
         let mut state = self.load_state(e); // 初期状態を読み込む
