@@ -201,7 +201,6 @@ struct Solver {
     ops: Vec<Op>, // 操作のリスト
     state: State, // 現在の状態
     counter: usize,
-    score: isize,
 }
 
 impl Solver {
@@ -211,7 +210,7 @@ impl Solver {
     }
     // [1-7]スコアを計算する
     fn compute_score(&self, _e: &Env) -> isize {
-        0
+        self.state.score
     }
     // [1-8]出力を作成する
     fn make_output(&self, _e: &Env) -> String {
@@ -256,6 +255,7 @@ fn main() {
     let e = Env::new();
     let mut solver = Solver::new(&e);
     solver.run(&e, &timer, LIMIT);
+    dbg!("Score_estimated: {}", solver.compute_score(&e));
     println!("{}", solver.make_output(&e));
 }
 
@@ -300,14 +300,13 @@ impl Solver {
             SolverState::None => {}
             _ => panic!("Invalid SOLVER_INIT: {:?}", SOLVER_INIT),
         }
-        solver.score = solver.compute_score(e);
         solver
     }
     fn run(&mut self, e: &Env, timer: &Instant, limit: f64) {
         // メインソルバーの実行
         match SOLVER_MAIN {
             SolverState::Beam => self.solve_beam(e, timer, limit), // ビームサーチ
-            SolverState::Anneal  => self.solve_aneal(e, timer, limit),  // 焼きなまし法
+            SolverState::Anneal  => self.solve_anneal(e, timer, limit),  // 焼きなまし法
             SolverState::None => {}
             _ => panic!("Invalid SOLVER_MAIN: {:?}", SOLVER_MAIN),
         }
@@ -399,7 +398,7 @@ impl Solver {
 
 // 焼きなまし法の実装
 impl Solver {
-    fn solve_aneal(&mut self, e: &Env, timer: &Instant, limit: f64) {
+    fn solve_anneal(&mut self, e: &Env, timer: &Instant, limit: f64) {
         let start_time = timer.elapsed().as_secs_f64();
         let mut temp = e.sa_start_temp; // 初期温度
         let mut state = self.state.clone(); // 初期状態を読み込む
@@ -417,7 +416,7 @@ impl Solver {
             if self.counter > best_counter + e.sa_patience {
                 best_counter = self.counter;
                 state = best_state.clone();
-                dbg!("counter:{} score:{} restart from the best", self.counter, self.score);
+                dbg!("counter:{} score:{} restart from the best", self.counter, self.state.score);
             }
             // 遷移候補を決めて、遷移した場合のコスト差分を計算する
             let trans = state.choose_transition(e, &mut rng);
@@ -448,5 +447,65 @@ impl Solver {
         }
         // 現在のベストを最終結果として採用する
         self.state = best_state;
+    }
+}
+
+// 非常によく使う2次元サポート関数
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+struct P(isize, isize);
+
+#[allow(dead_code)]
+impl P {
+    fn abs(&self) -> isize {
+        self.0.abs() + self.1.abs()
+    }
+    fn norm2(&self) -> isize {
+        self.0 * self.0 + self.1 * self.1
+    }
+    fn abs_diff(&self, other: &Self) -> isize {
+        (*self - *other).abs()
+    }
+    fn norm(&self) -> f64 {
+        (self.norm2() as f64).sqrt()
+    }
+    fn dot(&self, other: &Self) -> isize {
+        self.0 * other.0 + self.1 * other.1
+    }
+    fn det(&self, other: &Self) -> isize {
+        self.0 * other.1 - self.1 * other.0
+    }
+    fn cos(&self, other: &Self) -> f64 {
+        let norm_self = self.norm();
+        let norm_other = other.norm();
+        if norm_self == 0.0 || norm_other == 0.0 {
+            return 1.0; // ゼロベクトル同士のコサインは1とする
+        }
+        (self.dot(other) as f64) / (norm_self * norm_other)
+    }
+}
+
+impl std::ops::Add for P {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        P(self.0 + other.0, self.1 + other.1)
+    }
+}
+impl std::ops::Sub for P {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        P(self.0 - other.0, self.1 - other.1)
+    }
+}
+impl std::ops::AddAssign for P {
+    fn add_assign(&mut self, other: Self) {
+        self.0 += other.0;
+        self.1 += other.1;
+    }
+}
+impl std::ops::SubAssign for P {
+    fn sub_assign(&mut self, other: Self) {
+        self.0 -= other.0;
+        self.1 -= other.1;
     }
 }
