@@ -78,13 +78,13 @@ impl XorshiftRng {
         (start, end)
     }
     // [0, 1] の範囲のf64の乱数を求める
-    pub fn gen(&mut self) -> f64 {
+    pub fn random(&mut self) -> f64 {
         self._xorshift();
         self.seed as f64 / u64::MAX as f64
     }
     // 正規分布に従う乱数を求める
     pub fn gen_gaussian(&mut self, mu: f64, sigma: f64) -> f64 {
-        norm::ppf(self.gen(), mu, sigma)
+        norm::ppf(self.random(), mu, sigma)
     }
     // u64の乱数を求める
     pub fn gen_u64(&mut self) -> u64 {
@@ -177,9 +177,9 @@ mod tests {
         assert_eq!(x, vec![2, 3, 4, 5, 7, 9]);
         let x = rng.gen_range_multiple(0..10, 10); // 6個
         assert_eq!(x, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-        let x = rng.gen();               // [0, 1]のf64の一様乱数
+        let x = rng.random();               // [0, 1]のf64の一様乱数
         assert!(0.70 < x && x < 0.71);
-        let x = rng.gen();
+        let x = rng.random();
         assert!(0.17 < x && x < 0.18);
         let x = rng.gen_range_weighted(0..10,
             &[0, 0, 0, 10, 1, 2, 1, 0, 1, 0]);
@@ -211,10 +211,10 @@ mod tests {
     #[test]
     fn benchmark1_public_rand() {
         use rand::prelude::*;
-        let mut rng = SmallRng::from_entropy();
+        let mut rng = SmallRng::from_rng(&mut rand::rng());
         let mut total = 0;
         for _ in 0..100_000_000 {
-            let random_range = rng.gen_range(5..10);    // [0, 10)のusizeの一様乱数
+            let random_range = rng.random_range(5..10);    // [0, 10)のusizeの一様乱数
             assert!(5 <= random_range && random_range < 10);
             total += random_range;
         }

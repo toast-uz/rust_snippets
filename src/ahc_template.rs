@@ -52,7 +52,7 @@ AHC共通テンプレート
 
 use std::time::Instant;
 use itertools::Itertools;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::prelude::*;
 use proconio::input;
 // HashSet/HashMapを使う場合は、必ずFxHashを使うこと
 //use rustc_hash::{FxHashSet as HashSet, FxHashMap as HashMap};
@@ -60,7 +60,7 @@ use proconio::input;
 const LIMIT: f64 = 0.0; // 制限時間（秒）
 #[allow(dead_code)]
 const DEBUG: bool = true;
-const INF: usize = 1 << 60 as usize;
+const INF: usize = 1usize << 60;
 
 #[allow(unused_macros)]
 macro_rules! dbg {( $( $x:expr ),* ) => ( if DEBUG {eprintln!($( $x ),* );}) }
@@ -425,11 +425,11 @@ impl Solver {
             let accept = match e.score_direction {
                 ScoreDirection::Maximize => {
                     let prob = (score_diff as f64 / temp).exp();
-                    score_diff >= 0 || prob > rng.gen()
+                    score_diff >= 0 || prob > rng.random()
                 }
                 ScoreDirection::Minimize => {
                     let prob = (-score_diff as f64 / temp).exp();
-                    score_diff <= 0 || prob > rng.gen()
+                    score_diff <= 0 || prob > rng.random()
                 }
             };
             if accept { // 確率probで遷移する

@@ -529,7 +529,7 @@ pub fn steiner_tree<T: Cell>(terminals: &[Coordinate], map: &StaticMap<T>,
             .filter(|&(terminal_id, (_, pos))|
                 !used_terminal_ids.contains(&terminal_id) && pos.is_some())
             .map(|(terminal_id, (d, pos))| (terminal_id, d, pos.clone().unwrap()))
-            .min_by_key(|(_, &d, _)| d) else { break; };
+            .min_by_key(|(_, d, _)| *d) else { break; };
         added_tree.clear();
         added_tree.insert(terminals[terminal_id].clone());
         used_terminal_ids.insert(terminal_id);
