@@ -416,7 +416,7 @@ impl Solver {
             if self.counter > best_counter + e.sa_patience {
                 best_counter = self.counter;
                 state = best_state.clone();
-                dbg!("counter:{} score:{} restart from the best", self.counter, self.state.score);
+                dbg!("counter:{} score:{} restart from the best", self.counter, state.score);
             }
             // 遷移候補を決めて、遷移した場合のコスト差分を計算する
             let trans = state.choose_transition(e, &mut rng);
